@@ -16,6 +16,29 @@ from app.schemas.policy import (
     PolicyAssignRequest,
 )
 
+
+def _policy_to_response(policy: Policy) -> PolicyResponse:
+    """Convert a Policy ORM object to a PolicyResponse, parsing JSON fields."""
+    return PolicyResponse(
+        id=policy.id,
+        name=policy.name,
+        description=policy.description,
+        policy_type=policy.policy_type,
+        app_list=json.loads(policy.app_list) if policy.app_list else None,
+        kiosk_enabled=policy.kiosk_enabled,
+        kiosk_apps=json.loads(policy.kiosk_apps) if policy.kiosk_apps else None,
+        camera_disabled=policy.camera_disabled,
+        screenshot_disabled=policy.screenshot_disabled,
+        usb_disabled=policy.usb_disabled,
+        wifi_config_disabled=policy.wifi_config_disabled,
+        bluetooth_disabled=policy.bluetooth_disabled,
+        install_apps_disabled=policy.install_apps_disabled,
+        uninstall_apps_disabled=policy.uninstall_apps_disabled,
+        factory_reset_disabled=policy.factory_reset_disabled,
+        is_active=policy.is_active,
+        created_at=policy.created_at,
+    )
+
 router = APIRouter(prefix="/policies", tags=["Policies"])
 
 
@@ -26,15 +49,7 @@ async def list_policies(
 ):
     result = await db.execute(select(Policy).order_by(Policy.created_at.desc()))
     policies = result.scalars().all()
-    response = []
-    for p in policies:
-        data = PolicyResponse.model_validate(p)
-        if p.app_list:
-            data.app_list = json.loads(p.app_list)
-        if p.kiosk_apps:
-            data.kiosk_apps = json.loads(p.kiosk_apps)
-        response.append(data)
-    return response
+    return [_policy_to_response(p) for p in policies]
 
 
 @router.post("", response_model=PolicyResponse)
@@ -62,13 +77,7 @@ async def create_policy(
     db.add(db_policy)
     await db.flush()
     await db.refresh(db_policy)
-
-    data = PolicyResponse.model_validate(db_policy)
-    if db_policy.app_list:
-        data.app_list = json.loads(db_policy.app_list)
-    if db_policy.kiosk_apps:
-        data.kiosk_apps = json.loads(db_policy.kiosk_apps)
-    return data
+    return _policy_to_response(db_policy)
 
 
 @router.get("/{policy_id}", response_model=PolicyResponse)
@@ -81,13 +90,7 @@ async def get_policy(
     policy = result.scalar_one_or_none()
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
-
-    data = PolicyResponse.model_validate(policy)
-    if policy.app_list:
-        data.app_list = json.loads(policy.app_list)
-    if policy.kiosk_apps:
-        data.kiosk_apps = json.loads(policy.kiosk_apps)
-    return data
+    return _policy_to_response(policy)
 
 
 @router.put("/{policy_id}", response_model=PolicyResponse)
@@ -111,13 +114,7 @@ async def update_policy(
 
     await db.flush()
     await db.refresh(policy)
-
-    data = PolicyResponse.model_validate(policy)
-    if policy.app_list:
-        data.app_list = json.loads(policy.app_list)
-    if policy.kiosk_apps:
-        data.kiosk_apps = json.loads(policy.kiosk_apps)
-    return data
+    return _policy_to_response(policy)
 
 
 @router.delete("/{policy_id}")
