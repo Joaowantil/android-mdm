@@ -1,0 +1,27 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+*.db
+.env
+
+# Node
+node_modules/
+frontend/dist/
+
+# Android
+android-agent/.gradle/
+android-agent/build/
+android-agent/app/build/
+android-agent/local.properties
+*.apk
+
+# IDE
+.idea/
+.vscode/
+*.iml
+
+# OS
+.DS_Store
+Thumbs.db

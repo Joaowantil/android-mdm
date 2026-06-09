@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">MDM Agent</string>
+    <string name="enrollment_title">Enrollment do Dispositivo</string>
+    <string name="enrollment_hint">Cole o token de enrollment</string>
+    <string name="enroll_button">Registrar Dispositivo</string>
+    <string name="status_enrolled">Dispositivo registrado com sucesso</string>
+    <string name="status_active">MDM Agent ativo</string>
+</resources>
