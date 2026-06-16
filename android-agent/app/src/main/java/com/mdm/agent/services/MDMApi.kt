@@ -47,6 +47,11 @@ data class LocationUpdate(
     val longitude: Double
 )
 
+data class CommandAck(
+    val status: String,
+    val result: Map<String, Any>? = null
+)
+
 interface MDMApi {
     @POST("/api/devices/enroll")
     suspend fun enroll(@Body request: EnrollRequest): Response<EnrollResponse>
@@ -56,4 +61,10 @@ interface MDMApi {
 
     @POST("/api/devices/location")
     suspend fun updateLocation(@Body location: LocationUpdate): Response<Map<String, String>>
+
+    @POST("/api/devices/command/{id}/ack")
+    suspend fun ackCommand(
+        @Path("id") id: Int,
+        @Body ack: CommandAck
+    ): Response<Map<String, String>>
 }

@@ -8,6 +8,11 @@ class CommandCreate(BaseModel):
     payload: dict | None = None
 
 
+class CommandAck(BaseModel):
+    status: str  # executed, failed
+    result: dict | None = None
+
+
 class CommandResponse(BaseModel):
     id: int
     device_id: int
