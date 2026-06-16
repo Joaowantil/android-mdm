@@ -1,9 +1,11 @@
 package com.mdm.agent.ui
 
+import android.Manifest
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.widget.Button
@@ -11,10 +13,13 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 import com.mdm.agent.R
 import com.mdm.agent.receivers.MDMDeviceAdminReceiver
 import com.mdm.agent.services.ApiClient
 import com.mdm.agent.services.EnrollRequest
+import com.mdm.agent.services.HeartbeatService
 import com.mdm.agent.services.HeartbeatWorker
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -30,6 +35,7 @@ class EnrollmentActivity : AppCompatActivity() {
 
     companion object {
         private const val REQUEST_CODE_ENABLE_ADMIN = 1001
+        private const val REQUEST_CODE_PERMISSIONS = 1002
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -60,6 +66,27 @@ class EnrollmentActivity : AppCompatActivity() {
 
         // Request device admin
         requestDeviceAdmin()
+
+        // Request runtime permissions (location for "locate", notifications for the service)
+        requestRuntimePermissions()
+    }
+
+    private fun requestRuntimePermissions() {
+        val permissions = mutableListOf(
+            Manifest.permission.ACCESS_FINE_LOCATION,
+            Manifest.permission.ACCESS_COARSE_LOCATION
+        )
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            permissions.add(Manifest.permission.POST_NOTIFICATIONS)
+        }
+        val toRequest = permissions.filter {
+            ContextCompat.checkSelfPermission(this, it) != PackageManager.PERMISSION_GRANTED
+        }
+        if (toRequest.isNotEmpty()) {
+            ActivityCompat.requestPermissions(
+                this, toRequest.toTypedArray(), REQUEST_CODE_PERMISSIONS
+            )
+        }
     }
 
     private fun requestDeviceAdmin() {
@@ -108,7 +135,8 @@ class EnrollmentActivity : AppCompatActivity() {
                             .putString("device_id", deviceId)
                             .apply()
 
-                        // Start heartbeat
+                        // Start fast command polling + periodic background fallback
+                        HeartbeatService.start(this@EnrollmentActivity)
                         HeartbeatWorker.schedule(this@EnrollmentActivity)
 
                         statusText.text = "Dispositivo registrado com sucesso!"

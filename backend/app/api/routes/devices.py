@@ -18,7 +18,7 @@ from app.schemas.device import (
     DeviceHeartbeat,
     DeviceLocationUpdate,
 )
-from app.schemas.command import CommandCreate, CommandResponse
+from app.schemas.command import CommandAck, CommandCreate, CommandResponse
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
@@ -273,6 +273,26 @@ async def device_heartbeat(
 
     await db.flush()
     return {"status": "ok", "commands": pending_commands}
+
+
+@router.post("/command/{command_id}/ack")
+async def ack_command(
+    command_id: int,
+    ack: CommandAck,
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(
+        select(DeviceCommand).where(DeviceCommand.id == command_id)
+    )
+    command = result.scalar_one_or_none()
+    if not command:
+        raise HTTPException(status_code=404, detail="Command not found")
+
+    command.status = ack.status
+    command.result = json.dumps(ack.result) if ack.result else None
+    command.executed_at = datetime.now(timezone.utc)
+    await db.flush()
+    return {"status": "ok"}
 
 
 @router.post("/location")
