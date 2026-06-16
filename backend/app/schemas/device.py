@@ -18,6 +18,10 @@ class DeviceUpdate(BaseModel):
     kiosk_apps: list[str] | None = None
 
 
+class DeviceLockRequest(BaseModel):
+    pin: str | None = None
+
+
 class DeviceResponse(BaseModel):
     id: int
     device_id: str
