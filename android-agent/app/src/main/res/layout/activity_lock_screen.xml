@@ -1,0 +1,62 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:gravity="center"
+    android:background="#0D1B2A"
+    android:padding="32dp">
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="🔒"
+        android:textSize="64sp"
+        android:layout_marginBottom="16dp" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Dispositivo Bloqueado"
+        android:textColor="#FFFFFF"
+        android:textSize="22sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text="Digite o PIN para desbloquear"
+        android:textColor="#B0BEC5"
+        android:textSize="14sp"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="24dp" />
+
+    <EditText
+        android:id="@+id/lockPinInput"
+        android:layout_width="220dp"
+        android:layout_height="wrap_content"
+        android:inputType="numberPassword"
+        android:gravity="center"
+        android:textColor="#FFFFFF"
+        android:textSize="24sp"
+        android:hint="PIN"
+        android:textColorHint="#607D8B"
+        android:backgroundTint="#FFFFFF" />
+
+    <TextView
+        android:id="@+id/lockErrorText"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:text=""
+        android:textColor="#EF5350"
+        android:textSize="14sp"
+        android:layout_marginTop="8dp" />
+
+    <Button
+        android:id="@+id/unlockButton"
+        android:layout_width="220dp"
+        android:layout_height="wrap_content"
+        android:text="Desbloquear"
+        android:layout_marginTop="24dp" />
+
+</LinearLayout>

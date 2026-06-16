@@ -13,6 +13,10 @@ import {
   Switch,
   FormControlLabel,
   TextField,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions,
 } from '@mui/material'
 import {
   Lock,
@@ -29,6 +33,8 @@ export default function DeviceDetail() {
   const [device, setDevice] = useState<Device | null>(null)
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [kioskApps, setKioskApps] = useState('')
+  const [lockDialogOpen, setLockDialogOpen] = useState(false)
+  const [lockPin, setLockPin] = useState('')
 
   useEffect(() => {
     loadDevice()
@@ -44,9 +50,20 @@ export default function DeviceDetail() {
   }
 
   const lockDevice = async () => {
+    if (lockPin && !/^\d{4,8}$/.test(lockPin)) {
+      setAlert({ type: 'error', message: 'O PIN deve ter de 4 a 8 dígitos' })
+      return
+    }
     try {
-      await api.post(`/devices/${id}/lock`)
-      setAlert({ type: 'success', message: 'Dispositivo bloqueado' })
+      await api.post(`/devices/${id}/lock`, lockPin ? { pin: lockPin } : {})
+      setAlert({
+        type: 'success',
+        message: lockPin
+          ? 'Dispositivo bloqueado. Desbloqueio exige o PIN definido.'
+          : 'Dispositivo bloqueado',
+      })
+      setLockDialogOpen(false)
+      setLockPin('')
       loadDevice()
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao bloquear' })
@@ -206,7 +223,7 @@ export default function DeviceDetail() {
                   variant="contained"
                   color="warning"
                   startIcon={<Lock />}
-                  onClick={lockDevice}
+                  onClick={() => setLockDialogOpen(true)}
                   fullWidth
                 >
                   Bloquear Dispositivo
@@ -234,6 +251,31 @@ export default function DeviceDetail() {
           </Card>
         </Grid>
       </Grid>
+
+      <Dialog open={lockDialogOpen} onClose={() => setLockDialogOpen(false)}>
+        <DialogTitle>Bloquear Dispositivo</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Defina um PIN (4 a 8 dígitos) que será exigido no aparelho para desbloquear.
+            Deixe em branco para apenas travar a tela.
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            label="PIN de desbloqueio (opcional)"
+            type="password"
+            inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 8 }}
+            value={lockPin}
+            onChange={(e) => setLockPin(e.target.value.replace(/\D/g, ''))}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setLockDialogOpen(false)}>Cancelar</Button>
+          <Button variant="contained" color="warning" onClick={lockDevice}>
+            Bloquear
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   )
 }

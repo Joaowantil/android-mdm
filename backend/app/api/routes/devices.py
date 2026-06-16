@@ -17,6 +17,7 @@ from app.schemas.device import (
     DeviceEnrollResponse,
     DeviceHeartbeat,
     DeviceLocationUpdate,
+    DeviceLockRequest,
 )
 from app.schemas.command import CommandAck, CommandCreate, CommandResponse
 
@@ -118,10 +119,28 @@ async def update_device(
 
     if update.name is not None:
         device.name = update.name
-    if update.kiosk_enabled is not None:
-        device.kiosk_enabled = update.kiosk_enabled
+
+    kiosk_changed = False
     if update.kiosk_apps is not None:
         device.kiosk_apps = json.dumps(update.kiosk_apps)
+        kiosk_changed = True
+    if update.kiosk_enabled is not None:
+        device.kiosk_enabled = update.kiosk_enabled
+        kiosk_changed = True
+
+    # Push a kiosk command so the agent actually enters/exits kiosk mode.
+    if kiosk_changed:
+        apps = json.loads(device.kiosk_apps) if device.kiosk_apps else []
+        command = DeviceCommand(
+            device_id=device_id,
+            command_type="set_kiosk",
+            payload=json.dumps({
+                "enabled": device.kiosk_enabled,
+                "apps": apps,
+            }),
+            status="pending",
+        )
+        db.add(command)
 
     await db.flush()
     return device
@@ -144,6 +163,7 @@ async def delete_device(
 @router.post("/{device_id}/lock", response_model=CommandResponse)
 async def lock_device(
     device_id: int,
+    lock: DeviceLockRequest | None = None,
     db: AsyncSession = Depends(get_db),
     _current_user: dict = Depends(get_current_user),
 ):
@@ -152,9 +172,11 @@ async def lock_device(
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
+    pin = lock.pin if lock else None
     command = DeviceCommand(
         device_id=device_id,
         command_type="lock",
+        payload=json.dumps({"pin": pin}) if pin else None,
         status="pending",
     )
     db.add(command)
