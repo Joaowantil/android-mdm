@@ -2,6 +2,7 @@ package com.mdm.agent.ui
 
 import android.content.Context
 import android.os.Bundle
+import android.widget.Button
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.mdm.agent.R
@@ -23,5 +24,17 @@ class MainActivity : AppCompatActivity() {
         // Fast command polling + periodic background fallback
         HeartbeatService.start(this)
         HeartbeatWorker.schedule(this)
+
+        // Allow an admin to re-enter the kiosk after pausing it with the PIN.
+        val enterKioskButton = findViewById<Button>(R.id.enterKioskButton)
+        enterKioskButton.setOnClickListener { KioskActivity.enter(this) }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        val prefs = getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
+        val kioskArmed = prefs.getBoolean("kiosk_enabled", false)
+        findViewById<Button>(R.id.enterKioskButton).visibility =
+            if (kioskArmed) android.view.View.VISIBLE else android.view.View.GONE
     }
 }

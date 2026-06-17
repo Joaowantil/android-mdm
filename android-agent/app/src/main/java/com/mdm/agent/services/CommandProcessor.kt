@@ -120,6 +120,7 @@ object CommandProcessor {
         val prefs = context.getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
         prefs.edit()
             .putBoolean("kiosk_enabled", enabled)
+            .putBoolean("kiosk_paused", false)
             .putString("kiosk_apps", apps.joinToString(","))
             .apply()
         if (!pin.isNullOrBlank()) {
@@ -139,6 +140,7 @@ object CommandProcessor {
             )
         } else {
             KioskPolicy.disable(context)
+            KioskActivity.cancelResumeNotification(context)
             context.sendBroadcast(Intent(KioskActivity.ACTION_EXIT_KIOSK).setPackage(context.packageName))
         }
     }
