@@ -57,6 +57,20 @@
             android:taskAffinity=""
             android:theme="@style/Theme.MDMAgent" />
 
+        <!-- HOME alias enabled only while kiosk is active so that the Home button
+             returns to the kiosk; disabled on exit to restore the real launcher. -->
+        <activity-alias
+            android:name=".ui.KioskHomeAlias"
+            android:targetActivity=".ui.KioskActivity"
+            android:exported="true"
+            android:enabled="false">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.HOME" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+        </activity-alias>
+
         <!-- Device Admin Receiver -->
         <receiver
             android:name=".receivers.MDMDeviceAdminReceiver"

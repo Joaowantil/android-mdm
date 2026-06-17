@@ -26,7 +26,8 @@
 
     <ScrollView
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="0dp"
+        android:layout_weight="1">
 
         <LinearLayout
             android:id="@+id/kioskAppsContainer"
@@ -35,5 +36,12 @@
             android:orientation="vertical" />
 
     </ScrollView>
+
+    <Button
+        android:id="@+id/kioskExitButton"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="16dp"
+        android:text="Sair do Kiosk (PIN)" />
 
 </LinearLayout>

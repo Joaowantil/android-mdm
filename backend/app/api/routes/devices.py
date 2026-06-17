@@ -131,13 +131,16 @@ async def update_device(
     # Push a kiosk command so the agent actually enters/exits kiosk mode.
     if kiosk_changed:
         apps = json.loads(device.kiosk_apps) if device.kiosk_apps else []
+        payload = {
+            "enabled": device.kiosk_enabled,
+            "apps": apps,
+        }
+        if update.kiosk_pin:
+            payload["pin"] = update.kiosk_pin
         command = DeviceCommand(
             device_id=device_id,
             command_type="set_kiosk",
-            payload=json.dumps({
-                "enabled": device.kiosk_enabled,
-                "apps": apps,
-            }),
+            payload=json.dumps(payload),
             status="pending",
         )
         db.add(command)
