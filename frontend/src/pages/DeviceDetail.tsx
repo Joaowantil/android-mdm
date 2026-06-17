@@ -33,6 +33,7 @@ export default function DeviceDetail() {
   const [device, setDevice] = useState<Device | null>(null)
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [kioskApps, setKioskApps] = useState('')
+  const [kioskPin, setKioskPin] = useState('')
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
   const [lockPin, setLockPin] = useState('')
 
@@ -91,11 +92,16 @@ export default function DeviceDetail() {
   }
 
   const toggleKiosk = async (enabled: boolean) => {
+    if (enabled && kioskPin && !/^\d{4,8}$/.test(kioskPin)) {
+      setAlert({ type: 'error', message: 'O PIN do kiosk deve ter de 4 a 8 dígitos' })
+      return
+    }
     try {
       const apps = kioskApps.split(',').map((a) => a.trim()).filter(Boolean)
       await api.put(`/devices/${id}`, {
         kiosk_enabled: enabled,
         kiosk_apps: apps.length > 0 ? apps : undefined,
+        kiosk_pin: enabled && kioskPin ? kioskPin : undefined,
       })
       setAlert({ type: 'success', message: enabled ? 'Kiosk mode ativado' : 'Kiosk mode desativado' })
       loadDevice()
@@ -196,6 +202,16 @@ export default function DeviceDetail() {
                 placeholder="com.whatsapp, com.google.android.apps.maps"
                 value={kioskApps}
                 onChange={(e) => setKioskApps(e.target.value)}
+                sx={{ mt: 2 }}
+                size="small"
+              />
+              <TextField
+                fullWidth
+                label="PIN para sair do kiosk (4 a 8 dígitos)"
+                type="password"
+                inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 8 }}
+                value={kioskPin}
+                onChange={(e) => setKioskPin(e.target.value.replace(/\D/g, ''))}
                 sx={{ my: 2 }}
                 size="small"
               />

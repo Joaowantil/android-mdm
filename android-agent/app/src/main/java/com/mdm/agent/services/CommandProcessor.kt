@@ -115,14 +115,19 @@ object CommandProcessor {
         val enabled = payload?.get("enabled") as? Boolean ?: false
         @Suppress("UNCHECKED_CAST")
         val apps = (payload?.get("apps") as? List<String>) ?: emptyList()
+        val pin = payload?.get("pin") as? String
 
         val prefs = context.getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
         prefs.edit()
             .putBoolean("kiosk_enabled", enabled)
             .putString("kiosk_apps", apps.joinToString(","))
             .apply()
+        if (!pin.isNullOrBlank()) {
+            prefs.edit().putString("kiosk_pin", pin).apply()
+        }
 
         if (enabled) {
+            KioskPolicy.enable(context, apps)
             val intent = Intent(context, KioskActivity::class.java)
                 .putStringArrayListExtra(KioskActivity.EXTRA_APPS, ArrayList(apps))
             launchActivity(
@@ -133,6 +138,7 @@ object CommandProcessor {
                 text = "Toque para abrir o modo kiosk"
             )
         } else {
+            KioskPolicy.disable(context)
             context.sendBroadcast(Intent(KioskActivity.ACTION_EXIT_KIOSK).setPackage(context.packageName))
         }
     }

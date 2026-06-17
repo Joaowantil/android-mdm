@@ -16,6 +16,7 @@ class DeviceUpdate(BaseModel):
     name: str | None = None
     kiosk_enabled: bool | None = None
     kiosk_apps: list[str] | None = None
+    kiosk_pin: str | None = None
 
 
 class DeviceLockRequest(BaseModel):
