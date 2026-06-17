@@ -2,10 +2,14 @@ package com.mdm.agent.ui
 
 import android.app.ActivityManager
 import android.app.AlertDialog
+import android.app.NotificationChannel
+import android.app.NotificationManager
+import android.app.PendingIntent
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.os.Build
 import android.os.Bundle
 import android.text.InputType
 import android.view.ViewGroup
@@ -15,6 +19,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.mdm.agent.R
 import com.mdm.agent.services.KioskPolicy
@@ -24,19 +29,44 @@ import com.mdm.agent.services.KioskPolicy
  * only exposes the allowlisted apps.
  *
  * As Device Owner the allowlisted apps run inside the lock task and the Home button returns
- * here; the kiosk can only be left by entering the kiosk PIN (or by disabling kiosk from the
- * dashboard, which broadcasts [ACTION_EXIT_KIOSK]).
+ * here. Entering the kiosk PIN does NOT turn the kiosk off; it *pauses* it so an admin can
+ * use the device normally and come back (via the "return to kiosk" notification or the
+ * "Entrar no Modo Kiosk" button in the app). Disabling kiosk from the dashboard turns it off
+ * completely (broadcasts [ACTION_EXIT_KIOSK]).
  */
 class KioskActivity : AppCompatActivity() {
 
     companion object {
         const val ACTION_EXIT_KIOSK = "com.mdm.agent.EXIT_KIOSK"
         const val EXTRA_APPS = "apps"
+        const val PREFS = "mdm_prefs"
+        private const val CHANNEL_ID = "mdm_agent_control"
+        private const val RESUME_NOTIFICATION_ID = 102
+
+        /** Launches (or returns to) the kiosk. Used on enable and when an admin resumes it. */
+        fun enter(context: Context) {
+            val intent = Intent(context, KioskActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            context.startActivity(intent)
+        }
+
+        fun cancelResumeNotification(context: Context) {
+            (context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager)
+                .cancel(RESUME_NOTIFICATION_ID)
+        }
     }
 
     private val exitReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
-            exitKiosk()
+            // Dashboard turned kiosk off entirely.
+            getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+                .putBoolean("kiosk_enabled", false)
+                .putBoolean("kiosk_paused", false)
+                .apply()
+            KioskPolicy.disable(this@KioskActivity)
+            cancelResumeNotification(this@KioskActivity)
+            stopLockTaskSafely()
+            finish()
         }
     }
 
@@ -51,33 +81,44 @@ class KioskActivity : AppCompatActivity() {
             ContextCompat.RECEIVER_NOT_EXPORTED
         )
 
-        renderApps()
+        // Entering this activity (re)arms the kiosk and re-applies the device-owner policy.
+        val apps = resolveApps()
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean("kiosk_enabled", true)
+            .putBoolean("kiosk_paused", false)
+            .apply()
+        KioskPolicy.enable(this, apps)
+        cancelResumeNotification(this)
+
+        renderApps(apps)
         findViewById<Button>(R.id.kioskExitButton).setOnClickListener { promptPinToExit() }
         startLockTaskSafely()
     }
 
     override fun onResume() {
         super.onResume()
-        val prefs = getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean("kiosk_enabled", false)) {
-            exitKiosk()
+            stopLockTaskSafely()
+            finish()
             return
         }
         // Re-assert lock task in case the user returned here from an allowlisted app.
         startLockTaskSafely()
     }
 
-    private fun renderApps() {
-        val container = findViewById<LinearLayout>(R.id.kioskAppsContainer)
-        container.removeAllViews()
-
-        val apps = intent.getStringArrayListExtra(EXTRA_APPS)
-            ?: getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
+    private fun resolveApps(): List<String> =
+        intent.getStringArrayListExtra(EXTRA_APPS)
+            ?: getSharedPreferences(PREFS, Context.MODE_PRIVATE)
                 .getString("kiosk_apps", "")
                 ?.split(",")
                 ?.map { it.trim() }
                 ?.filter { it.isNotEmpty() }
             ?: emptyList()
+
+    private fun renderApps(apps: List<String>) {
+        val container = findViewById<LinearLayout>(R.id.kioskAppsContainer)
+        container.removeAllViews()
 
         val pm = packageManager
         if (apps.isEmpty()) {
@@ -117,7 +158,7 @@ class KioskActivity : AppCompatActivity() {
     }
 
     private fun promptPinToExit() {
-        val prefs = getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val expected = prefs.getString("kiosk_pin", null)
             ?: prefs.getString("lock_pin", null)
         if (expected.isNullOrBlank()) {
@@ -131,11 +172,11 @@ class KioskActivity : AppCompatActivity() {
         }
         AlertDialog.Builder(this)
             .setTitle("Sair do Kiosk")
-            .setMessage("Digite o PIN para sair")
+            .setMessage("Digite o PIN para pausar o kiosk (modo administrador)")
             .setView(input)
             .setPositiveButton("Sair") { _, _ ->
                 if (input.text.toString().trim() == expected) {
-                    exitKiosk()
+                    pauseKiosk()
                 } else {
                     Toast.makeText(this, "PIN incorreto", Toast.LENGTH_SHORT).show()
                 }
@@ -144,12 +185,49 @@ class KioskActivity : AppCompatActivity() {
             .show()
     }
 
-    private fun exitKiosk() {
-        getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
-            .edit().putBoolean("kiosk_enabled", false).apply()
+    /**
+     * Temporarily leaves the kiosk for admin use. The kiosk stays armed (kiosk_enabled = true)
+     * so the device returns to it after a reboot, and a notification lets the admin come back.
+     */
+    private fun pauseKiosk() {
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
+            .putBoolean("kiosk_paused", true)
+            .apply()
         KioskPolicy.disable(this)
         stopLockTaskSafely()
+        postResumeNotification()
+        // Send the admin to the home launcher.
+        startActivity(
+            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        )
         finish()
+    }
+
+    private fun postResumeNotification() {
+        val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+            manager.createNotificationChannel(
+                NotificationChannel(CHANNEL_ID, "MDM Controle", NotificationManager.IMPORTANCE_HIGH)
+            )
+        }
+        val pending = PendingIntent.getActivity(
+            this,
+            RESUME_NOTIFICATION_ID,
+            Intent(this, KioskActivity::class.java)
+                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Modo Kiosk pausado")
+            .setContentText("Toque para voltar ao Modo Kiosk")
+            .setSmallIcon(R.mipmap.ic_launcher)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setOngoing(true)
+            .setAutoCancel(false)
+            .setContentIntent(pending)
+            .build()
+        manager.notify(RESUME_NOTIFICATION_ID, notification)
     }
 
     private fun startLockTaskSafely() {
