@@ -27,12 +27,37 @@ import {
 import api from '../services/api'
 import { Device } from '../types'
 
+function parseWebLinks(raw: string): { label: string; url: string }[] {
+  return raw
+    .split('\n')
+    .map((line) => line.trim())
+    .filter(Boolean)
+    .map((line) => {
+      const sep = line.indexOf('|')
+      let label = ''
+      let url = line
+      if (sep >= 0) {
+        label = line.slice(0, sep).trim()
+        url = line.slice(sep + 1).trim()
+      }
+      if (url && !/^https?:\/\//i.test(url)) {
+        url = `https://${url}`
+      }
+      if (!label) {
+        label = url.replace(/^https?:\/\//i, '').replace(/\/.*$/, '')
+      }
+      return { label, url }
+    })
+    .filter((l) => l.url)
+}
+
 export default function DeviceDetail() {
   const { id } = useParams()
   const navigate = useNavigate()
   const [device, setDevice] = useState<Device | null>(null)
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [kioskApps, setKioskApps] = useState('')
+  const [kioskWebLinks, setKioskWebLinks] = useState('')
   const [kioskPin, setKioskPin] = useState('')
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
   const [lockPin, setLockPin] = useState('')
@@ -98,9 +123,11 @@ export default function DeviceDetail() {
     }
     try {
       const apps = kioskApps.split(',').map((a) => a.trim()).filter(Boolean)
+      const webLinks = parseWebLinks(kioskWebLinks)
       await api.put(`/devices/${id}`, {
         kiosk_enabled: enabled,
         kiosk_apps: apps.length > 0 ? apps : undefined,
+        kiosk_web_links: webLinks.length > 0 ? webLinks : undefined,
         kiosk_pin: enabled && kioskPin ? kioskPin : undefined,
       })
       setAlert({ type: 'success', message: enabled ? 'Kiosk mode ativado' : 'Kiosk mode desativado' })
@@ -202,6 +229,17 @@ export default function DeviceDetail() {
                 placeholder="com.whatsapp, com.google.android.apps.maps"
                 value={kioskApps}
                 onChange={(e) => setKioskApps(e.target.value)}
+                sx={{ mt: 2 }}
+                size="small"
+              />
+              <TextField
+                fullWidth
+                multiline
+                minRows={2}
+                label="Sites permitidos (um por linha: Nome | https://site)"
+                placeholder={'Sistema de Chamados | https://chamados.empresa.com\nIntranet | https://intranet.empresa.com'}
+                value={kioskWebLinks}
+                onChange={(e) => setKioskWebLinks(e.target.value)}
                 sx={{ mt: 2 }}
                 size="small"
               />

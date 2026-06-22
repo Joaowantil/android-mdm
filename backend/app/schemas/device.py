@@ -12,10 +12,16 @@ class DeviceCreate(BaseModel):
     imei: str | None = None
 
 
+class KioskWebLink(BaseModel):
+    label: str
+    url: str
+
+
 class DeviceUpdate(BaseModel):
     name: str | None = None
     kiosk_enabled: bool | None = None
     kiosk_apps: list[str] | None = None
+    kiosk_web_links: list[KioskWebLink] | None = None
     kiosk_pin: str | None = None
 
 

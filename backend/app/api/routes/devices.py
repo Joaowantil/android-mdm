@@ -124,6 +124,11 @@ async def update_device(
     if update.kiosk_apps is not None:
         device.kiosk_apps = json.dumps(update.kiosk_apps)
         kiosk_changed = True
+    if update.kiosk_web_links is not None:
+        device.kiosk_web_links = json.dumps(
+            [link.model_dump() for link in update.kiosk_web_links]
+        )
+        kiosk_changed = True
     if update.kiosk_enabled is not None:
         device.kiosk_enabled = update.kiosk_enabled
         kiosk_changed = True
@@ -131,9 +136,11 @@ async def update_device(
     # Push a kiosk command so the agent actually enters/exits kiosk mode.
     if kiosk_changed:
         apps = json.loads(device.kiosk_apps) if device.kiosk_apps else []
+        web_links = json.loads(device.kiosk_web_links) if device.kiosk_web_links else []
         payload = {
             "enabled": device.kiosk_enabled,
             "apps": apps,
+            "web_links": web_links,
         }
         if update.kiosk_pin:
             payload["pin"] = update.kiosk_pin

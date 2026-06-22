@@ -33,6 +33,7 @@ class Device(Base):
     # Kiosk mode
     kiosk_enabled = Column(Boolean, default=False)
     kiosk_apps = Column(Text, nullable=True)  # JSON array of package names
+    kiosk_web_links = Column(Text, nullable=True)  # JSON array of {label, url}
 
     # FCM
     fcm_token = Column(String, nullable=True)
