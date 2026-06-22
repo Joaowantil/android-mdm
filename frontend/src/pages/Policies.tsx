@@ -21,10 +21,13 @@ import {
   IconButton,
   Alert,
   Tooltip,
+  Checkbox,
+  FormControlLabel,
+  FormGroup,
 } from '@mui/material'
-import { Add, Delete, Edit } from '@mui/icons-material'
+import { Add, Delete, DevicesOther } from '@mui/icons-material'
 import api from '../services/api'
-import { Policy } from '../types'
+import { Policy, Device } from '../types'
 
 const POLICY_TYPES = [
   { value: 'app_allowlist', label: 'App Allowlist (só esses apps)' },
@@ -37,6 +40,9 @@ export default function Policies() {
   const [policies, setPolicies] = useState<Policy[]>([])
   const [dialogOpen, setDialogOpen] = useState(false)
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
+  const [devices, setDevices] = useState<Device[]>([])
+  const [assignTarget, setAssignTarget] = useState<Policy | null>(null)
+  const [selectedDeviceIds, setSelectedDeviceIds] = useState<number[]>([])
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -52,6 +58,34 @@ export default function Policies() {
   useEffect(() => {
     loadPolicies()
   }, [])
+
+  const openAssign = async (policy: Policy) => {
+    setAssignTarget(policy)
+    setSelectedDeviceIds([])
+    try {
+      const response = await api.get('/devices')
+      setDevices(response.data)
+    } catch (err) {
+      console.error('Failed to load devices:', err)
+    }
+  }
+
+  const toggleDevice = (deviceId: number) => {
+    setSelectedDeviceIds((prev) =>
+      prev.includes(deviceId) ? prev.filter((d) => d !== deviceId) : [...prev, deviceId]
+    )
+  }
+
+  const assignPolicy = async () => {
+    if (!assignTarget) return
+    try {
+      await api.post(`/policies/${assignTarget.id}/assign`, { device_ids: selectedDeviceIds })
+      setAlert({ type: 'success', message: 'Política atribuída aos dispositivos selecionados' })
+      setAssignTarget(null)
+    } catch (err) {
+      setAlert({ type: 'error', message: 'Falha ao atribuir política' })
+    }
+  }
 
   const loadPolicies = async () => {
     try {
@@ -183,6 +217,15 @@ export default function Policies() {
                         />
                       </TableCell>
                       <TableCell>
+                        <Tooltip title="Atribuir a dispositivos">
+                          <IconButton
+                            size="small"
+                            color="primary"
+                            onClick={() => openAssign(policy)}
+                          >
+                            <DevicesOther />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Remover">
                           <IconButton
                             size="small"
@@ -265,6 +308,46 @@ export default function Policies() {
           <Button onClick={() => setDialogOpen(false)}>Cancelar</Button>
           <Button variant="contained" onClick={createPolicy} disabled={!form.name}>
             Criar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!assignTarget} onClose={() => setAssignTarget(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Atribuir "{assignTarget?.name}" a dispositivos</DialogTitle>
+        <DialogContent>
+          {devices.length === 0 ? (
+            <Typography color="text.secondary" sx={{ mt: 1 }}>
+              Nenhum dispositivo cadastrado.
+            </Typography>
+          ) : (
+            <FormGroup>
+              {devices.map((dev) => (
+                <FormControlLabel
+                  key={dev.id}
+                  control={
+                    <Checkbox
+                      checked={selectedDeviceIds.includes(dev.id)}
+                      onChange={() => toggleDevice(dev.id)}
+                    />
+                  }
+                  label={
+                    dev.name ||
+                    `${dev.manufacturer || ''} ${dev.model || ''}`.trim() ||
+                    dev.device_id
+                  }
+                />
+              ))}
+            </FormGroup>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setAssignTarget(null)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            onClick={assignPolicy}
+            disabled={selectedDeviceIds.length === 0}
+          >
+            Atribuir
           </Button>
         </DialogActions>
       </Dialog>

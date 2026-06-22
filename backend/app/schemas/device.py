@@ -1,6 +1,7 @@
+import json
 from datetime import datetime
 
-from pydantic import BaseModel
+from pydantic import BaseModel, field_validator
 
 
 class DeviceCreate(BaseModel):
@@ -43,11 +44,20 @@ class DeviceResponse(BaseModel):
     latitude: float | None
     longitude: float | None
     kiosk_enabled: bool
+    kiosk_apps: list[str] | None = None
+    kiosk_web_links: list[KioskWebLink] | None = None
     battery_level: int | None
     storage_free: int | None
     storage_total: int | None
     enrolled_at: datetime | None
     created_at: datetime | None
+
+    @field_validator("kiosk_apps", "kiosk_web_links", mode="before")
+    @classmethod
+    def _parse_json(cls, v):
+        if isinstance(v, str):
+            return json.loads(v) if v else None
+        return v
 
     class Config:
         from_attributes = True

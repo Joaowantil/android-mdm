@@ -69,7 +69,12 @@ export default function DeviceDetail() {
   const loadDevice = async () => {
     try {
       const response = await api.get(`/devices/${id}`)
-      setDevice(response.data)
+      const dev: Device = response.data
+      setDevice(dev)
+      setKioskApps((dev.kiosk_apps || []).join(', '))
+      setKioskWebLinks(
+        (dev.kiosk_web_links || []).map((l) => `${l.label} | ${l.url}`).join('\n')
+      )
     } catch (err) {
       console.error('Failed to load device:', err)
     }

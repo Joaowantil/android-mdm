@@ -12,6 +12,7 @@ import android.os.BatteryManager
 import android.os.Build
 import android.os.Environment
 import android.os.StatFs
+import android.os.UserManager
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.mdm.agent.R
@@ -73,14 +74,7 @@ object CommandProcessor {
                 "wipe" -> dpm.wipeData(0)
                 "locate" -> LocationService.requestLocationUpdate(context)
                 "set_kiosk" -> setKiosk(context, command.payload)
-                "apply_policy" -> {
-                    val payload = command.payload
-                    if (payload != null) {
-                        val cameraDisabled =
-                            (payload["restrictions"] as? Map<*, *>)?.get("camera_disabled") as? Boolean ?: false
-                        dpm.setCameraDisabled(adminComponent, cameraDisabled)
-                    }
-                }
+                "apply_policy" -> applyPolicy(context, dpm, adminComponent, command.payload)
                 else -> {
                     Log.w(TAG, "Unknown command type: ${command.command_type}")
                     success = false
@@ -111,6 +105,48 @@ object CommandProcessor {
             )
         }
         dpm.lockNow()
+    }
+
+    private fun applyPolicy(
+        context: Context,
+        dpm: DevicePolicyManager,
+        adminComponent: ComponentName,
+        payload: Map<String, Any>?,
+    ) {
+        if (payload == null) return
+
+        val restrictions = payload["restrictions"] as? Map<*, *> ?: emptyMap<Any, Any>()
+        fun flag(key: String) = restrictions[key] as? Boolean ?: false
+
+        dpm.setCameraDisabled(adminComponent, flag("camera_disabled"))
+        dpm.setScreenCaptureDisabled(adminComponent, flag("screenshot_disabled"))
+
+        // User restrictions require Device Owner; toggled on/off based on the policy.
+        applyRestriction(dpm, adminComponent, UserManager.DISALLOW_USB_FILE_TRANSFER, flag("usb_disabled"))
+        applyRestriction(dpm, adminComponent, UserManager.DISALLOW_INSTALL_APPS, flag("install_apps_disabled"))
+        applyRestriction(dpm, adminComponent, UserManager.DISALLOW_UNINSTALL_APPS, flag("uninstall_apps_disabled"))
+        applyRestriction(dpm, adminComponent, UserManager.DISALLOW_FACTORY_RESET, flag("factory_reset_disabled"))
+
+        // A kiosk policy actually puts the device into kiosk mode with its allowed apps.
+        val kioskEnabled = payload["kiosk_enabled"] as? Boolean ?: false
+        if (kioskEnabled) {
+            @Suppress("UNCHECKED_CAST")
+            val kioskApps = (payload["kiosk_apps"] as? List<String>) ?: emptyList()
+            setKiosk(context, mapOf("enabled" to true, "apps" to kioskApps))
+        }
+    }
+
+    private fun applyRestriction(
+        dpm: DevicePolicyManager,
+        adminComponent: ComponentName,
+        restriction: String,
+        enabled: Boolean,
+    ) {
+        if (enabled) {
+            dpm.addUserRestriction(adminComponent, restriction)
+        } else {
+            dpm.clearUserRestriction(adminComponent, restriction)
+        }
     }
 
     private fun setKiosk(context: Context, payload: Map<String, Any>?) {

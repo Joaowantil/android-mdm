@@ -12,6 +12,8 @@ export interface Device {
   latitude: number | null
   longitude: number | null
   kiosk_enabled: boolean
+  kiosk_apps: string[] | null
+  kiosk_web_links: { label: string; url: string }[] | null
   battery_level: number | null
   storage_free: number | null
   storage_total: number | null
