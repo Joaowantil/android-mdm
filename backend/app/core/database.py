@@ -23,6 +23,23 @@ async def get_db() -> AsyncSession:
             await session.close()
 
 
+def _run_light_migrations(conn):
+    """Add columns introduced after a table was first created.
+
+    The project uses ``create_all`` (no Alembic), which never alters existing
+    tables. This keeps already-deployed SQLite databases in sync without a reset.
+    """
+    from sqlalchemy import inspect, text
+
+    inspector = inspect(conn)
+    if "devices" not in inspector.get_table_names():
+        return
+    columns = {c["name"] for c in inspector.get_columns("devices")}
+    if "kiosk_web_links" not in columns:
+        conn.execute(text("ALTER TABLE devices ADD COLUMN kiosk_web_links TEXT"))
+
+
 async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_run_light_migrations)

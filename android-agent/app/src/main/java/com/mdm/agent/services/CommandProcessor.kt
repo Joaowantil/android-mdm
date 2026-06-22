@@ -18,6 +18,8 @@ import com.mdm.agent.R
 import com.mdm.agent.receivers.MDMDeviceAdminReceiver
 import com.mdm.agent.ui.KioskActivity
 import com.mdm.agent.ui.LockScreenActivity
+import org.json.JSONArray
+import org.json.JSONObject
 
 /**
  * Shared logic for sending a heartbeat, fetching pending commands and executing them.
@@ -115,13 +117,25 @@ object CommandProcessor {
         val enabled = payload?.get("enabled") as? Boolean ?: false
         @Suppress("UNCHECKED_CAST")
         val apps = (payload?.get("apps") as? List<String>) ?: emptyList()
+        @Suppress("UNCHECKED_CAST")
+        val webLinks = (payload?.get("web_links") as? List<Map<String, Any>>) ?: emptyList()
         val pin = payload?.get("pin") as? String
+
+        val webLinksJson = JSONArray().apply {
+            webLinks.forEach { link ->
+                val url = link["url"] as? String ?: ""
+                if (url.isNotBlank()) {
+                    put(JSONObject().put("label", link["label"] as? String ?: url).put("url", url))
+                }
+            }
+        }.toString()
 
         val prefs = context.getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
         prefs.edit()
             .putBoolean("kiosk_enabled", enabled)
             .putBoolean("kiosk_paused", false)
             .putString("kiosk_apps", apps.joinToString(","))
+            .putString("kiosk_web_links", webLinksJson)
             .apply()
         if (!pin.isNullOrBlank()) {
             prefs.edit().putString("kiosk_pin", pin).apply()

@@ -23,6 +23,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.mdm.agent.R
 import com.mdm.agent.services.KioskPolicy
+import org.json.JSONArray
 
 /**
  * Kiosk launcher. When kiosk mode is enabled the device is pinned to this activity, which
@@ -90,7 +91,7 @@ class KioskActivity : AppCompatActivity() {
         KioskPolicy.enable(this, apps)
         cancelResumeNotification(this)
 
-        renderApps(apps)
+        renderEntries(apps, resolveWebLinks())
         findViewById<Button>(R.id.kioskExitButton).setOnClickListener { promptPinToExit() }
         startLockTaskSafely()
     }
@@ -116,37 +117,60 @@ class KioskActivity : AppCompatActivity() {
                 ?.filter { it.isNotEmpty() }
             ?: emptyList()
 
-    private fun renderApps(apps: List<String>) {
+    private fun resolveWebLinks(): List<Pair<String, String>> {
+        val raw = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+            .getString("kiosk_web_links", null) ?: return emptyList()
+        return try {
+            val arr = JSONArray(raw)
+            (0 until arr.length()).mapNotNull { i ->
+                val obj = arr.optJSONObject(i) ?: return@mapNotNull null
+                val url = obj.optString("url").trim()
+                if (url.isEmpty()) return@mapNotNull null
+                val label = obj.optString("label").ifBlank { url }
+                label to url
+            }
+        } catch (e: Exception) {
+            emptyList()
+        }
+    }
+
+    private fun renderEntries(apps: List<String>, webLinks: List<Pair<String, String>>) {
         val container = findViewById<LinearLayout>(R.id.kioskAppsContainer)
         container.removeAllViews()
 
-        val pm = packageManager
-        if (apps.isEmpty()) {
+        if (apps.isEmpty() && webLinks.isEmpty()) {
             val empty = TextView(this).apply {
-                text = "Nenhum app permitido configurado"
+                text = "Nenhum app ou site configurado"
                 setTextColor(0xFFB0BEC5.toInt())
             }
             container.addView(empty)
             return
         }
 
+        val pm = packageManager
         apps.forEach { pkg ->
             val label = try {
                 pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
             } catch (e: Exception) {
                 pkg
             }
-            val button = Button(this).apply {
-                text = label
-                layoutParams = LinearLayout.LayoutParams(
-                    ViewGroup.LayoutParams.MATCH_PARENT,
-                    ViewGroup.LayoutParams.WRAP_CONTENT
-                )
-                setOnClickListener { launchApp(pkg) }
-            }
-            container.addView(button)
+            container.addView(makeButton(label) { launchApp(pkg) })
+        }
+
+        webLinks.forEach { (label, url) ->
+            container.addView(makeButton(label) { launchWebLink(label, url) })
         }
     }
+
+    private fun makeButton(label: String, onClick: () -> Unit): Button =
+        Button(this).apply {
+            text = label
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener { onClick() }
+        }
 
     private fun launchApp(pkg: String) {
         val launch = packageManager.getLaunchIntentForPackage(pkg)
@@ -155,6 +179,14 @@ class KioskActivity : AppCompatActivity() {
         } else {
             Toast.makeText(this, "App não encontrado: $pkg", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    private fun launchWebLink(label: String, url: String) {
+        startActivity(
+            Intent(this, WebViewActivity::class.java)
+                .putExtra(WebViewActivity.EXTRA_URL, url)
+                .putExtra(WebViewActivity.EXTRA_TITLE, label)
+        )
     }
 
     private fun promptPinToExit() {
