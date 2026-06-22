@@ -131,14 +131,36 @@ export default function DeviceDetail() {
       const webLinks = parseWebLinks(kioskWebLinks)
       await api.put(`/devices/${id}`, {
         kiosk_enabled: enabled,
-        kiosk_apps: apps.length > 0 ? apps : undefined,
-        kiosk_web_links: webLinks.length > 0 ? webLinks : undefined,
+        kiosk_apps: apps,
+        kiosk_web_links: webLinks,
         kiosk_pin: enabled && kioskPin ? kioskPin : undefined,
       })
       setAlert({ type: 'success', message: enabled ? 'Kiosk mode ativado' : 'Kiosk mode desativado' })
       loadDevice()
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao alterar kiosk mode' })
+      return
+    }
+  }
+
+  const saveKiosk = async () => {
+    if (kioskPin && !/^\d{4,8}$/.test(kioskPin)) {
+      setAlert({ type: 'error', message: 'O PIN do kiosk deve ter de 4 a 8 dígitos' })
+      return
+    }
+    try {
+      const apps = kioskApps.split(',').map((a) => a.trim()).filter(Boolean)
+      const webLinks = parseWebLinks(kioskWebLinks)
+      await api.put(`/devices/${id}`, {
+        kiosk_enabled: device?.kiosk_enabled ?? false,
+        kiosk_apps: apps,
+        kiosk_web_links: webLinks,
+        kiosk_pin: device?.kiosk_enabled && kioskPin ? kioskPin : undefined,
+      })
+      setAlert({ type: 'success', message: 'Configurações do kiosk salvas' })
+      loadDevice()
+    } catch (err) {
+      setAlert({ type: 'error', message: 'Falha ao salvar configurações do kiosk' })
     }
   }
 
@@ -258,15 +280,20 @@ export default function DeviceDetail() {
                 sx={{ my: 2 }}
                 size="small"
               />
-              <FormControlLabel
-                control={
-                  <Switch
-                    checked={device.kiosk_enabled}
-                    onChange={(e) => toggleKiosk(e.target.checked)}
-                  />
-                }
-                label={device.kiosk_enabled ? 'Kiosk Mode Ativo' : 'Kiosk Mode Inativo'}
-              />
+              <Box sx={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <FormControlLabel
+                  control={
+                    <Switch
+                      checked={device.kiosk_enabled}
+                      onChange={(e) => toggleKiosk(e.target.checked)}
+                    />
+                  }
+                  label={device.kiosk_enabled ? 'Kiosk Mode Ativo' : 'Kiosk Mode Inativo'}
+                />
+                <Button variant="outlined" size="small" onClick={saveKiosk}>
+                  Salvar apps/sites
+                </Button>
+              </Box>
             </CardContent>
           </Card>
         </Grid>
