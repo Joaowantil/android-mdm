@@ -25,7 +25,7 @@ import {
   FormControlLabel,
   FormGroup,
 } from '@mui/material'
-import { Add, Delete, DevicesOther } from '@mui/icons-material'
+import { Add, Delete, DevicesOther, Edit } from '@mui/icons-material'
 import api from '../services/api'
 import { Policy, Device } from '../types'
 
@@ -43,6 +43,7 @@ export default function Policies() {
   const [devices, setDevices] = useState<Device[]>([])
   const [assignTarget, setAssignTarget] = useState<Policy | null>(null)
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<number[]>([])
+  const [editingId, setEditingId] = useState<number | null>(null)
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -96,7 +97,29 @@ export default function Policies() {
     }
   }
 
-  const createPolicy = async () => {
+  const openCreate = () => {
+    resetForm()
+    setEditingId(null)
+    setDialogOpen(true)
+  }
+
+  const openEdit = (policy: Policy) => {
+    setForm({
+      name: policy.name,
+      description: policy.description || '',
+      policy_type: policy.policy_type,
+      app_list: (policy.app_list || []).join(', '),
+      kiosk_apps: (policy.kiosk_apps || []).join(', '),
+      camera_disabled: policy.camera_disabled,
+      screenshot_disabled: policy.screenshot_disabled,
+      usb_disabled: policy.usb_disabled,
+      install_apps_disabled: policy.install_apps_disabled,
+    })
+    setEditingId(policy.id)
+    setDialogOpen(true)
+  }
+
+  const savePolicy = async () => {
     try {
       const payload = {
         name: form.name,
@@ -110,13 +133,19 @@ export default function Policies() {
         usb_disabled: form.usb_disabled,
         install_apps_disabled: form.install_apps_disabled,
       }
-      await api.post('/policies', payload)
-      setAlert({ type: 'success', message: 'Política criada com sucesso' })
+      if (editingId) {
+        await api.put(`/policies/${editingId}`, payload)
+        setAlert({ type: 'success', message: 'Política atualizada com sucesso' })
+      } else {
+        await api.post('/policies', payload)
+        setAlert({ type: 'success', message: 'Política criada com sucesso' })
+      }
       setDialogOpen(false)
+      setEditingId(null)
       resetForm()
       loadPolicies()
     } catch (err) {
-      setAlert({ type: 'error', message: 'Falha ao criar política' })
+      setAlert({ type: 'error', message: 'Falha ao salvar política' })
     }
   }
 
@@ -156,7 +185,7 @@ export default function Policies() {
         <Button
           variant="contained"
           startIcon={<Add />}
-          onClick={() => setDialogOpen(true)}
+          onClick={openCreate}
         >
           Nova Política
         </Button>
@@ -217,6 +246,14 @@ export default function Policies() {
                         />
                       </TableCell>
                       <TableCell>
+                        <Tooltip title="Editar">
+                          <IconButton
+                            size="small"
+                            onClick={() => openEdit(policy)}
+                          >
+                            <Edit />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Atribuir a dispositivos">
                           <IconButton
                             size="small"
@@ -246,7 +283,7 @@ export default function Policies() {
       </Card>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>Nova Política</DialogTitle>
+        <DialogTitle>{editingId ? 'Editar Política' : 'Nova Política'}</DialogTitle>
         <DialogContent>
           <TextField
             fullWidth
@@ -306,8 +343,8 @@ export default function Policies() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setDialogOpen(false)}>Cancelar</Button>
-          <Button variant="contained" onClick={createPolicy} disabled={!form.name}>
-            Criar
+          <Button variant="contained" onClick={savePolicy} disabled={!form.name}>
+            {editingId ? 'Salvar' : 'Criar'}
           </Button>
         </DialogActions>
       </Dialog>

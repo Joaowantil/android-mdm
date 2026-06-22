@@ -154,28 +154,57 @@ async def assign_policy(
         assignment = PolicyAssignment(policy_id=policy_id, device_id=dev_id)
         db.add(assignment)
 
-        # Create command to apply policy on device
-        command = DeviceCommand(
-            device_id=dev_id,
-            command_type="apply_policy",
-            payload=json.dumps({
-                "policy_id": policy_id,
-                "policy_type": policy.policy_type,
-                "app_list": json.loads(policy.app_list) if policy.app_list else [],
-                "kiosk_enabled": policy.kiosk_enabled,
-                "kiosk_apps": json.loads(policy.kiosk_apps) if policy.kiosk_apps else [],
-                "restrictions": {
-                    "camera_disabled": policy.camera_disabled,
-                    "screenshot_disabled": policy.screenshot_disabled,
-                    "usb_disabled": policy.usb_disabled,
-                    "install_apps_disabled": policy.install_apps_disabled,
-                    "uninstall_apps_disabled": policy.uninstall_apps_disabled,
-                    "factory_reset_disabled": policy.factory_reset_disabled,
-                },
-            }),
-            status="pending",
-        )
-        db.add(command)
+        kiosk_apps = json.loads(policy.kiosk_apps) if policy.kiosk_apps else []
+        is_kiosk = policy.policy_type == "kiosk" or policy.kiosk_enabled
+
+        # Kiosk policies reuse the proven set_kiosk command so they apply even on
+        # agents that predate the apply_policy kiosk support, and we mirror the
+        # state onto the device so the dashboard reflects it.
+        if is_kiosk:
+            device.kiosk_enabled = True
+            device.kiosk_apps = json.dumps(kiosk_apps)
+            db.add(DeviceCommand(
+                device_id=dev_id,
+                command_type="set_kiosk",
+                payload=json.dumps({
+                    "enabled": True,
+                    "apps": kiosk_apps,
+                    "web_links": [],
+                }),
+                status="pending",
+            ))
+
+        has_restrictions = any([
+            policy.camera_disabled,
+            policy.screenshot_disabled,
+            policy.usb_disabled,
+            policy.install_apps_disabled,
+            policy.uninstall_apps_disabled,
+            policy.factory_reset_disabled,
+        ])
+
+        # Restrictions (and non-kiosk policies) still go through apply_policy.
+        if has_restrictions or not is_kiosk:
+            db.add(DeviceCommand(
+                device_id=dev_id,
+                command_type="apply_policy",
+                payload=json.dumps({
+                    "policy_id": policy_id,
+                    "policy_type": policy.policy_type,
+                    "app_list": json.loads(policy.app_list) if policy.app_list else [],
+                    "kiosk_enabled": policy.kiosk_enabled,
+                    "kiosk_apps": kiosk_apps,
+                    "restrictions": {
+                        "camera_disabled": policy.camera_disabled,
+                        "screenshot_disabled": policy.screenshot_disabled,
+                        "usb_disabled": policy.usb_disabled,
+                        "install_apps_disabled": policy.install_apps_disabled,
+                        "uninstall_apps_disabled": policy.uninstall_apps_disabled,
+                        "factory_reset_disabled": policy.factory_reset_disabled,
+                    },
+                }),
+                status="pending",
+            ))
         assigned_count += 1
 
     await db.flush()
