@@ -6,4 +6,10 @@
         <item name="colorOnPrimary">@android:color/white</item>
         <item name="colorSecondary">#DC004E</item>
     </style>
+
+    <!-- Kiosk uses the device wallpaper as its background. -->
+    <style name="Theme.MDMAgent.Kiosk" parent="Theme.MDMAgent">
+        <item name="android:windowShowWallpaper">true</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+    </style>
 </resources>

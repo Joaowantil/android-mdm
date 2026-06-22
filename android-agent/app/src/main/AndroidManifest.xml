@@ -55,7 +55,7 @@
             android:launchMode="singleInstance"
             android:excludeFromRecents="true"
             android:taskAffinity=""
-            android:theme="@style/Theme.MDMAgent" />
+            android:theme="@style/Theme.MDMAgent.Kiosk" />
 
         <activity
             android:name=".ui.WebViewActivity"
