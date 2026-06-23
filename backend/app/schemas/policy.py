@@ -3,6 +3,11 @@ from datetime import datetime
 from pydantic import BaseModel
 
 
+class KioskWebLink(BaseModel):
+    label: str
+    url: str
+
+
 class PolicyCreate(BaseModel):
     name: str
     description: str | None = None
@@ -10,6 +15,7 @@ class PolicyCreate(BaseModel):
     app_list: list[str] | None = None
     kiosk_enabled: bool = False
     kiosk_apps: list[str] | None = None
+    kiosk_web_links: list[KioskWebLink] | None = None
     camera_disabled: bool = False
     screenshot_disabled: bool = False
     usb_disabled: bool = False
@@ -26,6 +32,7 @@ class PolicyUpdate(BaseModel):
     app_list: list[str] | None = None
     kiosk_enabled: bool | None = None
     kiosk_apps: list[str] | None = None
+    kiosk_web_links: list[KioskWebLink] | None = None
     camera_disabled: bool | None = None
     screenshot_disabled: bool | None = None
     usb_disabled: bool | None = None
@@ -45,6 +52,7 @@ class PolicyResponse(BaseModel):
     app_list: list[str] | None = None
     kiosk_enabled: bool
     kiosk_apps: list[str] | None = None
+    kiosk_web_links: list[KioskWebLink] | None = None
     camera_disabled: bool
     screenshot_disabled: bool
     usb_disabled: bool

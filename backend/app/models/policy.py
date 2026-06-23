@@ -18,6 +18,7 @@ class Policy(Base):
     # Kiosk settings
     kiosk_enabled = Column(Boolean, default=False)
     kiosk_apps = Column(Text, nullable=True)  # JSON of allowed apps in kiosk
+    kiosk_web_links = Column(Text, nullable=True)  # JSON array of {label, url}
 
     # Restrictions
     camera_disabled = Column(Boolean, default=False)

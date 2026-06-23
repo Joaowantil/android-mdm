@@ -50,11 +50,26 @@ export default function Policies() {
     policy_type: 'app_allowlist',
     app_list: '',
     kiosk_apps: '',
+    kiosk_web_links: '',
     camera_disabled: false,
     screenshot_disabled: false,
     usb_disabled: false,
     install_apps_disabled: false,
   })
+
+  const parseWebLinks = (text: string) =>
+    text
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [first, ...rest] = line.split('|')
+        if (rest.length > 0) {
+          return { label: first.trim(), url: rest.join('|').trim() }
+        }
+        return { label: first.trim(), url: first.trim() }
+      })
+      .filter((l) => l.url)
 
   useEffect(() => {
     loadPolicies()
@@ -114,6 +129,9 @@ export default function Policies() {
       policy_type: policy.policy_type,
       app_list: (policy.app_list || []).join(', '),
       kiosk_apps: (policy.kiosk_apps || []).join(', '),
+      kiosk_web_links: (policy.kiosk_web_links || [])
+        .map((l) => `${l.label} | ${l.url}`)
+        .join('\n'),
       camera_disabled: policy.camera_disabled,
       screenshot_disabled: policy.screenshot_disabled,
       usb_disabled: policy.usb_disabled,
@@ -131,6 +149,8 @@ export default function Policies() {
         policy_type: form.policy_type,
         app_list: form.app_list ? form.app_list.split(',').map((a) => a.trim()) : undefined,
         kiosk_apps: form.kiosk_apps ? form.kiosk_apps.split(',').map((a) => a.trim()) : undefined,
+        kiosk_web_links:
+          form.policy_type === 'kiosk' ? parseWebLinks(form.kiosk_web_links) : undefined,
         kiosk_enabled: form.policy_type === 'kiosk',
         camera_disabled: form.camera_disabled,
         screenshot_disabled: form.screenshot_disabled,
@@ -171,6 +191,7 @@ export default function Policies() {
       policy_type: 'app_allowlist',
       app_list: '',
       kiosk_apps: '',
+      kiosk_web_links: '',
       camera_disabled: false,
       screenshot_disabled: false,
       usb_disabled: false,
@@ -333,16 +354,28 @@ export default function Policies() {
           )}
 
           {form.policy_type === 'kiosk' && (
-            <TextField
-              fullWidth
-              label="Apps do Kiosk (pacotes separados por vírgula)"
-              placeholder="com.whatsapp"
-              value={form.kiosk_apps}
-              onChange={(e) => setForm({ ...form, kiosk_apps: e.target.value })}
-              margin="normal"
-              multiline
-              rows={3}
-            />
+            <>
+              <TextField
+                fullWidth
+                label="Apps do Kiosk (pacotes separados por vírgula)"
+                placeholder="com.whatsapp"
+                value={form.kiosk_apps}
+                onChange={(e) => setForm({ ...form, kiosk_apps: e.target.value })}
+                margin="normal"
+                multiline
+                rows={3}
+              />
+              <TextField
+                fullWidth
+                label="Sites permitidos (um por linha: Nome | https://site)"
+                placeholder={'Sistema de Chamados | https://chamados.empresa.com\nIntranet | https://intranet.empresa.com'}
+                value={form.kiosk_web_links}
+                onChange={(e) => setForm({ ...form, kiosk_web_links: e.target.value })}
+                margin="normal"
+                multiline
+                rows={3}
+              />
+            </>
           )}
         </DialogContent>
         <DialogActions>

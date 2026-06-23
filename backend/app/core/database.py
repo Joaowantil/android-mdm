@@ -32,11 +32,15 @@ def _run_light_migrations(conn):
     from sqlalchemy import inspect, text
 
     inspector = inspect(conn)
-    if "devices" not in inspector.get_table_names():
-        return
-    columns = {c["name"] for c in inspector.get_columns("devices")}
-    if "kiosk_web_links" not in columns:
-        conn.execute(text("ALTER TABLE devices ADD COLUMN kiosk_web_links TEXT"))
+    tables = inspector.get_table_names()
+    if "devices" in tables:
+        columns = {c["name"] for c in inspector.get_columns("devices")}
+        if "kiosk_web_links" not in columns:
+            conn.execute(text("ALTER TABLE devices ADD COLUMN kiosk_web_links TEXT"))
+    if "policies" in tables:
+        columns = {c["name"] for c in inspector.get_columns("policies")}
+        if "kiosk_web_links" not in columns:
+            conn.execute(text("ALTER TABLE policies ADD COLUMN kiosk_web_links TEXT"))
 
 
 async def init_db():
