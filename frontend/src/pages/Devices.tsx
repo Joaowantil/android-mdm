@@ -29,6 +29,7 @@ import {
   ContentCopy,
   Visibility,
 } from '@mui/icons-material'
+import { QRCodeCanvas } from 'qrcode.react'
 import api from '../services/api'
 import { Device } from '../types'
 
@@ -229,8 +230,15 @@ export default function Devices() {
         <DialogTitle>Token de Enrollment</DialogTitle>
         <DialogContent>
           <Typography gutterBottom>
-            Use este token no app do agente MDM para registrar um novo dispositivo:
+            Escaneie o QR Code no app do agente MDM (botão "Escanear QR") ou use o token abaixo:
           </Typography>
+          {enrollToken && (
+            <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
+              <Box sx={{ p: 2, bgcolor: '#fff', borderRadius: 1, border: '1px solid', borderColor: 'grey.300' }}>
+                <QRCodeCanvas value={enrollToken} size={200} level="M" />
+              </Box>
+            </Box>
+          )}
           <Box
             sx={{
               p: 2,
