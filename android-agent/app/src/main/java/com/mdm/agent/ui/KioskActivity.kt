@@ -285,13 +285,7 @@ class KioskActivity : AppCompatActivity() {
     private fun showAssetId() {
         val assetId = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString("asset_id", null)
-        val view = findViewById<TextView>(R.id.kioskAssetId)
-        if (!assetId.isNullOrBlank()) {
-            view.text = "ID: $assetId"
-            view.visibility = android.view.View.VISIBLE
-        } else {
-            view.visibility = android.view.View.GONE
-        }
+        title = if (!assetId.isNullOrBlank()) "MDM Agent · $assetId" else "MDM Agent"
     }
 
     private fun promptPinToExit() {
