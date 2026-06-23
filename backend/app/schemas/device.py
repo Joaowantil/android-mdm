@@ -1,7 +1,11 @@
 import json
-from datetime import datetime
+from datetime import datetime, timezone
 
 from pydantic import BaseModel, field_validator, model_validator
+
+# A device is considered offline if its last heartbeat is older than this. The
+# agent heartbeats every ~15s, so this tolerates a few missed beats.
+ONLINE_THRESHOLD_SECONDS = 60
 
 
 class DeviceCreate(BaseModel):
@@ -69,6 +73,20 @@ class DeviceResponse(BaseModel):
     def _fill_asset_id(self):
         if self.asset_id is None and self.id is not None:
             self.asset_id = asset_id_from_pk(self.id)
+        return self
+
+    @model_validator(mode="after")
+    def _compute_online(self):
+        # Derive online status from the last heartbeat instead of trusting the
+        # stored flag, which is never reset when a device goes dark.
+        if self.last_seen is None:
+            self.is_online = False
+            return self
+        last = self.last_seen
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        delta = (datetime.now(timezone.utc) - last).total_seconds()
+        self.is_online = delta <= ONLINE_THRESHOLD_SECONDS
         return self
 
     class Config:

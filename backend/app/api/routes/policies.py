@@ -170,8 +170,35 @@ async def assign_policy(
     existing = await db.execute(
         select(PolicyAssignment).where(PolicyAssignment.policy_id == policy_id)
     )
+    previous_device_ids = set()
     for old in existing.scalars().all():
+        previous_device_ids.add(old.device_id)
         await db.delete(old)
+
+    is_kiosk = policy.policy_type == "kiosk" or policy.kiosk_enabled
+
+    # Devices removed from a kiosk policy must have the kiosk torn down so the
+    # dashboard "reset" actually reaches the device (apps/sites cleared).
+    removed_device_ids = previous_device_ids - set(request.device_ids)
+    for dev_id in removed_device_ids:
+        dev_result = await db.execute(select(Device).where(Device.id == dev_id))
+        device = dev_result.scalar_one_or_none()
+        if not device:
+            continue
+        if is_kiosk:
+            device.kiosk_enabled = False
+            device.kiosk_apps = None
+            device.kiosk_web_links = None
+            db.add(DeviceCommand(
+                device_id=dev_id,
+                command_type="set_kiosk",
+                payload=json.dumps({
+                    "enabled": False,
+                    "apps": [],
+                    "web_links": [],
+                }),
+                status="pending",
+            ))
 
     assigned_count = 0
     for dev_id in request.device_ids:
@@ -185,7 +212,6 @@ async def assign_policy(
         db.add(assignment)
 
         kiosk_apps = json.loads(policy.kiosk_apps) if policy.kiosk_apps else []
-        is_kiosk = policy.policy_type == "kiosk" or policy.kiosk_enabled
 
         # Kiosk policies reuse the proven set_kiosk command so they apply even on
         # agents that predate the apply_policy kiosk support, and we mirror the
