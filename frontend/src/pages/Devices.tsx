@@ -131,6 +131,7 @@ export default function Devices() {
             <Table>
               <TableHead>
                 <TableRow>
+                  <TableCell>ID</TableCell>
                   <TableCell>Dispositivo</TableCell>
                   <TableCell>Modelo</TableCell>
                   <TableCell>OS</TableCell>
@@ -143,7 +144,7 @@ export default function Devices() {
               <TableBody>
                 {devices.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} align="center">
+                    <TableCell colSpan={8} align="center">
                       <Typography color="text.secondary">
                         Nenhum dispositivo registrado
                       </Typography>
@@ -152,6 +153,9 @@ export default function Devices() {
                 ) : (
                   devices.map((device) => (
                     <TableRow key={device.id} hover>
+                      <TableCell>
+                        <Chip label={device.asset_id || `MDM-${device.id}`} size="small" variant="outlined" />
+                      </TableCell>
                       <TableCell>
                         {device.name || device.device_id.slice(0, 12)}
                       </TableCell>

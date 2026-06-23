@@ -17,6 +17,7 @@ data class EnrollRequest(
 data class EnrollResponse(
     val success: Boolean,
     val device_id: String,
+    val asset_id: String?,
     val message: String
 )
 
@@ -32,6 +33,7 @@ data class HeartbeatRequest(
 
 data class HeartbeatResponse(
     val status: String,
+    val asset_id: String?,
     val commands: List<PendingCommand>
 )
 

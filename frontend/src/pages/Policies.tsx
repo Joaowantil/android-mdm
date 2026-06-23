@@ -64,10 +64,14 @@ export default function Policies() {
     setAssignTarget(policy)
     setSelectedDeviceIds([])
     try {
-      const response = await api.get('/devices')
-      setDevices(response.data)
+      const [devicesRes, assignmentsRes] = await Promise.all([
+        api.get('/devices'),
+        api.get(`/policies/${policy.id}/assignments`),
+      ])
+      setDevices(devicesRes.data)
+      setSelectedDeviceIds(assignmentsRes.data.device_ids || [])
     } catch (err) {
-      console.error('Failed to load devices:', err)
+      console.error('Failed to load devices/assignments:', err)
     }
   }
 
@@ -368,9 +372,11 @@ export default function Policies() {
                     />
                   }
                   label={
-                    dev.name ||
-                    `${dev.manufacturer || ''} ${dev.model || ''}`.trim() ||
-                    dev.device_id
+                    `${dev.asset_id ? dev.asset_id + ' — ' : ''}${
+                      dev.name ||
+                      `${dev.manufacturer || ''} ${dev.model || ''}`.trim() ||
+                      dev.device_id
+                    }`
                   }
                 />
               ))}
