@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, field_validator, model_validator
+from pydantic import BaseModel, field_serializer, field_validator, model_validator
 
 # A device is considered offline if its last heartbeat is older than this. The
 # agent heartbeats every ~15s, so this tolerates a few missed beats.
@@ -68,6 +68,17 @@ class DeviceResponse(BaseModel):
         if isinstance(v, str):
             return json.loads(v) if v else None
         return v
+
+    @field_serializer("last_seen", "enrolled_at", "created_at")
+    def _serialize_utc(self, value: datetime | None):
+        # SQLite returns naive datetimes; tag them as UTC so the browser
+        # converts to the viewer's local timezone instead of treating UTC as
+        # local (which made timestamps appear hours ahead).
+        if value is None:
+            return None
+        if value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value.isoformat()
 
     @model_validator(mode="after")
     def _fill_asset_id(self):

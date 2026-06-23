@@ -418,12 +418,8 @@ export default function Policies() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setAssignTarget(null)}>Cancelar</Button>
-          <Button
-            variant="contained"
-            onClick={assignPolicy}
-            disabled={selectedDeviceIds.length === 0}
-          >
-            Atribuir
+          <Button variant="contained" onClick={assignPolicy}>
+            Salvar
           </Button>
         </DialogActions>
       </Dialog>
