@@ -15,6 +15,8 @@ import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.ActivityCompat
 import androidx.core.content.ContextCompat
+import com.journeyapps.barcodescanner.ScanContract
+import com.journeyapps.barcodescanner.ScanOptions
 import com.mdm.agent.R
 import com.mdm.agent.receivers.MDMDeviceAdminReceiver
 import com.mdm.agent.services.ApiClient
@@ -31,7 +33,15 @@ class EnrollmentActivity : AppCompatActivity() {
 
     private lateinit var tokenInput: EditText
     private lateinit var enrollButton: Button
+    private lateinit var scanButton: Button
     private lateinit var statusText: TextView
+
+    private val scanLauncher = registerForActivityResult(ScanContract()) { result ->
+        if (result.contents != null) {
+            tokenInput.setText(result.contents.trim())
+            statusText.text = "Token lido do QR. Toque em registrar."
+        }
+    }
 
     companion object {
         private const val REQUEST_CODE_ENABLE_ADMIN = 1001
@@ -53,7 +63,10 @@ class EnrollmentActivity : AppCompatActivity() {
 
         tokenInput = findViewById(R.id.tokenInput)
         enrollButton = findViewById(R.id.enrollButton)
+        scanButton = findViewById(R.id.scanButton)
         statusText = findViewById(R.id.statusText)
+
+        scanButton.setOnClickListener { startQrScan() }
 
         enrollButton.setOnClickListener {
             val token = tokenInput.text.toString().trim()
@@ -69,6 +82,16 @@ class EnrollmentActivity : AppCompatActivity() {
 
         // Request runtime permissions (location for "locate", notifications for the service)
         requestRuntimePermissions()
+    }
+
+    private fun startQrScan() {
+        val options = ScanOptions().apply {
+            setDesiredBarcodeFormats(ScanOptions.QR_CODE)
+            setPrompt("Aponte para o QR Code do enrollment")
+            setBeepEnabled(false)
+            setOrientationLocked(false)
+        }
+        scanLauncher.launch(options)
     }
 
     private fun requestRuntimePermissions() {

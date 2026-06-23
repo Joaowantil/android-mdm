@@ -18,16 +18,28 @@
         app:layout_constraintEnd_toEndOf="parent"
         android:layout_marginTop="80dp" />
 
+    <com.google.android.material.button.MaterialButton
+        android:id="@+id/scanButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="0dp"
+        android:layout_height="wrap_content"
+        android:text="Escanear QR"
+        app:icon="@android:drawable/ic_menu_camera"
+        app:layout_constraintTop_toBottomOf="@id/titleText"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        android:layout_marginTop="40dp" />
+
     <com.google.android.material.textfield.TextInputEditText
         android:id="@+id/tokenInput"
         android:layout_width="0dp"
         android:layout_height="wrap_content"
         android:hint="@string/enrollment_hint"
         android:inputType="text"
-        app:layout_constraintTop_toBottomOf="@id/titleText"
+        app:layout_constraintTop_toBottomOf="@id/scanButton"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        android:layout_marginTop="40dp" />
+        android:layout_marginTop="16dp" />
 
     <com.google.android.material.button.MaterialButton
         android:id="@+id/enrollButton"
