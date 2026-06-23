@@ -9,15 +9,28 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
+import android.graphics.Paint
+import android.graphics.Typeface
+import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.Drawable
 import android.os.Build
 import android.os.Bundle
 import android.text.InputType
+import android.util.TypedValue
+import android.view.Gravity
+import android.view.View
 import android.view.ViewGroup
 import android.widget.Button
 import android.widget.EditText
+import android.widget.GridLayout
+import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
+import kotlin.math.abs
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
@@ -148,6 +161,15 @@ class KioskActivity : AppCompatActivity() {
             return
         }
 
+        val columns = 4
+        val grid = GridLayout(this).apply {
+            columnCount = columns
+            layoutParams = LinearLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT
+            )
+        }
+
         val pm = packageManager
         apps.forEach { pkg ->
             val label = try {
@@ -155,23 +177,93 @@ class KioskActivity : AppCompatActivity() {
             } catch (e: Exception) {
                 pkg
             }
-            container.addView(makeButton(label) { launchApp(pkg) })
+            val icon = try {
+                pm.getApplicationIcon(pkg)
+            } catch (e: Exception) {
+                letterIcon(label)
+            }
+            grid.addView(makeIconItem(label, icon) { launchApp(pkg) })
         }
 
         webLinks.forEach { (label, url) ->
-            container.addView(makeButton(label) { launchWebLink(label, url) })
+            grid.addView(makeIconItem(label, webLinkIcon(label)) { launchWebLink(label, url) })
         }
+
+        container.addView(grid)
     }
 
-    private fun makeButton(label: String, onClick: () -> Unit): Button =
-        Button(this).apply {
+    private fun dp(value: Int): Int = TypedValue.applyDimension(
+        TypedValue.COMPLEX_UNIT_DIP, value.toFloat(), resources.displayMetrics
+    ).toInt()
+
+    /** A single launcher-style cell: real icon on top, label underneath. */
+    private fun makeIconItem(label: String, icon: Drawable, onClick: () -> Unit): View {
+        val cell = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(dp(8), dp(12), dp(8), dp(12))
+            isClickable = true
+            isFocusable = true
+            layoutParams = GridLayout.LayoutParams().apply {
+                width = 0
+                columnSpec = GridLayout.spec(GridLayout.UNDEFINED, 1, 1f)
+            }
+            setOnClickListener { onClick() }
+        }
+
+        val image = ImageView(this).apply {
+            setImageDrawable(icon)
+            layoutParams = LinearLayout.LayoutParams(dp(56), dp(56))
+        }
+        cell.addView(image)
+
+        val text = TextView(this).apply {
             text = label
-            layoutParams = LinearLayout.LayoutParams(
+            setTextColor(Color.WHITE)
+            textSize = 12f
+            gravity = Gravity.CENTER
+            maxLines = 2
+            ellipsize = android.text.TextUtils.TruncateAt.END
+            val lp = LinearLayout.LayoutParams(
                 ViewGroup.LayoutParams.MATCH_PARENT,
                 ViewGroup.LayoutParams.WRAP_CONTENT
             )
-            setOnClickListener { onClick() }
+            lp.topMargin = dp(6)
+            layoutParams = lp
         }
+        cell.addView(text)
+        return cell
+    }
+
+    /** Globe-style icon for a web link: colored rounded square with a "🌐"/initial. */
+    private fun webLinkIcon(label: String): Drawable = letterIcon(label, web = true)
+
+    private fun letterIcon(label: String, web: Boolean = false): Drawable {
+        val size = dp(56)
+        val bmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bmp)
+
+        val palette = intArrayOf(
+            0xFF1976D2.toInt(), 0xFF388E3C.toInt(), 0xFFD32F2F.toInt(),
+            0xFF7B1FA2.toInt(), 0xFFF57C00.toInt(), 0xFF00838F.toInt(),
+        )
+        val bg = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = palette[abs(label.hashCode()) % palette.size]
+        }
+        val radius = size * 0.22f
+        canvas.drawRoundRect(0f, 0f, size.toFloat(), size.toFloat(), radius, radius, bg)
+
+        val glyph = if (web) "\uD83C\uDF10" else label.trim().take(1).uppercase().ifBlank { "?" }
+        val textPaint = Paint(Paint.ANTI_ALIAS_FLAG).apply {
+            color = Color.WHITE
+            textAlign = Paint.Align.CENTER
+            textSize = if (web) size * 0.5f else size * 0.45f
+            typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        }
+        val y = size / 2f - (textPaint.descent() + textPaint.ascent()) / 2f
+        canvas.drawText(glyph, size / 2f, y, textPaint)
+        return BitmapDrawable(resources, bmp)
+    }
 
     private fun launchApp(pkg: String) {
         val launch = packageManager.getLaunchIntentForPackage(pkg)

@@ -27,6 +27,9 @@ def _policy_to_response(policy: Policy) -> PolicyResponse:
         app_list=json.loads(policy.app_list) if policy.app_list else None,
         kiosk_enabled=policy.kiosk_enabled,
         kiosk_apps=json.loads(policy.kiosk_apps) if policy.kiosk_apps else None,
+        kiosk_web_links=(
+            json.loads(policy.kiosk_web_links) if policy.kiosk_web_links else None
+        ),
         camera_disabled=policy.camera_disabled,
         screenshot_disabled=policy.screenshot_disabled,
         usb_disabled=policy.usb_disabled,
@@ -65,6 +68,11 @@ async def create_policy(
         app_list=json.dumps(policy.app_list) if policy.app_list else None,
         kiosk_enabled=policy.kiosk_enabled,
         kiosk_apps=json.dumps(policy.kiosk_apps) if policy.kiosk_apps else None,
+        kiosk_web_links=(
+            json.dumps([link.model_dump() for link in policy.kiosk_web_links])
+            if policy.kiosk_web_links
+            else None
+        ),
         camera_disabled=policy.camera_disabled,
         screenshot_disabled=policy.screenshot_disabled,
         usb_disabled=policy.usb_disabled,
@@ -107,7 +115,7 @@ async def update_policy(
 
     update_data = update.model_dump(exclude_unset=True)
     for key, value in update_data.items():
-        if key in ("app_list", "kiosk_apps") and value is not None:
+        if key in ("app_list", "kiosk_apps", "kiosk_web_links") and value is not None:
             setattr(policy, key, json.dumps(value))
         else:
             setattr(policy, key, value)
@@ -183,15 +191,19 @@ async def assign_policy(
         # agents that predate the apply_policy kiosk support, and we mirror the
         # state onto the device so the dashboard reflects it.
         if is_kiosk:
+            web_links = (
+                json.loads(policy.kiosk_web_links) if policy.kiosk_web_links else []
+            )
             device.kiosk_enabled = True
             device.kiosk_apps = json.dumps(kiosk_apps)
+            device.kiosk_web_links = json.dumps(web_links) if web_links else None
             db.add(DeviceCommand(
                 device_id=dev_id,
                 command_type="set_kiosk",
                 payload=json.dumps({
                     "enabled": True,
                     "apps": kiosk_apps,
-                    "web_links": [],
+                    "web_links": web_links,
                 }),
                 status="pending",
             ))

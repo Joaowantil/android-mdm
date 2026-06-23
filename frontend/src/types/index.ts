@@ -30,6 +30,7 @@ export interface Policy {
   app_list: string[] | null
   kiosk_enabled: boolean
   kiosk_apps: string[] | null
+  kiosk_web_links: { label: string; url: string }[] | null
   camera_disabled: boolean
   screenshot_disabled: boolean
   usb_disabled: boolean
