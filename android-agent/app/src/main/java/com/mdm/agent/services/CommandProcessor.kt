@@ -56,6 +56,10 @@ object CommandProcessor {
             return false
         }
 
+        response.body()?.asset_id?.let { assetId ->
+            prefs.edit().putString("asset_id", assetId).apply()
+        }
+
         response.body()?.commands?.forEach { command ->
             executeCommand(context, command)
         }

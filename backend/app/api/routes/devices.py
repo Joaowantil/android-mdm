@@ -18,6 +18,7 @@ from app.schemas.device import (
     DeviceHeartbeat,
     DeviceLocationUpdate,
     DeviceLockRequest,
+    asset_id_from_pk,
 )
 from app.schemas.command import CommandAck, CommandCreate, CommandResponse
 
@@ -88,6 +89,7 @@ async def enroll_device(
     return DeviceEnrollResponse(
         success=True,
         device_id=device.device_id,
+        asset_id=asset_id_from_pk(device.id),
         message="Device enrolled successfully",
     )
 
@@ -304,7 +306,11 @@ async def device_heartbeat(
         cmd.status = "sent"
 
     await db.flush()
-    return {"status": "ok", "commands": pending_commands}
+    return {
+        "status": "ok",
+        "asset_id": asset_id_from_pk(device.id),
+        "commands": pending_commands,
+    }
 
 
 @router.post("/command/{command_id}/ack")

@@ -131,6 +131,20 @@ async def delete_policy(
     return {"message": "Policy deleted"}
 
 
+@router.get("/{policy_id}/assignments")
+async def get_policy_assignments(
+    policy_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current_user: dict = Depends(get_current_user),
+):
+    result = await db.execute(
+        select(PolicyAssignment.device_id).where(
+            PolicyAssignment.policy_id == policy_id
+        )
+    )
+    return {"device_ids": [row[0] for row in result.all()]}
+
+
 @router.post("/{policy_id}/assign")
 async def assign_policy(
     policy_id: int,
@@ -142,6 +156,14 @@ async def assign_policy(
     policy = result.scalar_one_or_none()
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
+
+    # Replace the assignment set so the dashboard checkboxes reflect exactly the
+    # selected devices (unchecking a device removes its assignment).
+    existing = await db.execute(
+        select(PolicyAssignment).where(PolicyAssignment.policy_id == policy_id)
+    )
+    for old in existing.scalars().all():
+        await db.delete(old)
 
     assigned_count = 0
     for dev_id in request.device_ids:

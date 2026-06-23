@@ -179,6 +179,7 @@ export default function DeviceDetail() {
       )}
 
       <Typography variant="h4" gutterBottom>
+        {device.asset_id ? `${device.asset_id} · ` : ''}
         {device.name || device.model || device.device_id}
       </Typography>
 
@@ -191,8 +192,12 @@ export default function DeviceDetail() {
               </Typography>
               <Grid container spacing={2}>
                 <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">ID</Typography>
-                  <Typography>{device.device_id}</Typography>
+                  <Typography variant="body2" color="text.secondary">ID do Dispositivo</Typography>
+                  <Typography>{device.asset_id || `MDM-${device.id}`}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">UUID</Typography>
+                  <Typography sx={{ wordBreak: 'break-all', fontSize: '0.8rem' }}>{device.device_id}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">Modelo</Typography>

@@ -1,7 +1,7 @@
 import json
 from datetime import datetime
 
-from pydantic import BaseModel, field_validator
+from pydantic import BaseModel, field_validator, model_validator
 
 
 class DeviceCreate(BaseModel):
@@ -30,9 +30,15 @@ class DeviceLockRequest(BaseModel):
     pin: str | None = None
 
 
+def asset_id_from_pk(pk: int) -> str:
+    """Human-friendly device identifier derived from the primary key."""
+    return f"MDM-{pk:04d}"
+
+
 class DeviceResponse(BaseModel):
     id: int
     device_id: str
+    asset_id: str | None = None
     name: str | None
     model: str | None
     manufacturer: str | None
@@ -59,6 +65,12 @@ class DeviceResponse(BaseModel):
             return json.loads(v) if v else None
         return v
 
+    @model_validator(mode="after")
+    def _fill_asset_id(self):
+        if self.asset_id is None and self.id is not None:
+            self.asset_id = asset_id_from_pk(self.id)
+        return self
+
     class Config:
         from_attributes = True
 
@@ -77,6 +89,7 @@ class DeviceEnrollRequest(BaseModel):
 class DeviceEnrollResponse(BaseModel):
     success: bool
     device_id: str
+    asset_id: str | None = None
     message: str
 
 

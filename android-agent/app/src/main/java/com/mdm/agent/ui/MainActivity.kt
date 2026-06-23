@@ -17,9 +17,11 @@ class MainActivity : AppCompatActivity() {
 
         val prefs = getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
         val deviceId = prefs.getString("device_id", "N/A")
+        val assetId = prefs.getString("asset_id", null)
 
         val statusText = findViewById<TextView>(R.id.mainStatusText)
-        statusText.text = "MDM Agent Ativo\n\nDevice ID: $deviceId\n\nO agente está rodando em background e reportando ao servidor MDM."
+        val idLine = if (assetId != null) "ID do Dispositivo: $assetId\n\n" else ""
+        statusText.text = "MDM Agent Ativo\n\n${idLine}Device ID: $deviceId\n\nO agente está rodando em background e reportando ao servidor MDM."
 
         // Fast command polling + periodic background fallback
         HeartbeatService.start(this)

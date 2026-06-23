@@ -1,6 +1,7 @@
 export interface Device {
   id: number
   device_id: string
+  asset_id: string | null
   name: string | null
   model: string | null
   manufacturer: string | null
