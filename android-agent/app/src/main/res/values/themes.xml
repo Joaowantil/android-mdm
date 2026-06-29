@@ -7,6 +7,14 @@
         <item name="colorSecondary">#DC004E</item>
     </style>
 
+    <!-- Embedded browser draws its own top bar, so hide the system action bar. -->
+    <style name="Theme.MDMAgent.NoActionBar" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <item name="colorPrimary">#1976D2</item>
+        <item name="colorPrimaryVariant">#1565C0</item>
+        <item name="colorOnPrimary">@android:color/white</item>
+        <item name="colorSecondary">#DC004E</item>
+    </style>
+
     <!-- Kiosk uses the device wallpaper as its background. -->
     <style name="Theme.MDMAgent.Kiosk" parent="Theme.MDMAgent">
         <item name="android:windowShowWallpaper">true</item>

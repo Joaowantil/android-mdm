@@ -61,8 +61,9 @@
         <activity
             android:name=".ui.WebViewActivity"
             android:exported="false"
+            android:launchMode="singleTask"
             android:configChanges="orientation|screenSize|keyboardHidden"
-            android:theme="@style/Theme.MDMAgent" />
+            android:theme="@style/Theme.MDMAgent.NoActionBar" />
 
         <!-- HOME alias enabled only while kiosk is active so that the Home button
              returns to the kiosk; disabled on exit to restore the real launcher. -->
