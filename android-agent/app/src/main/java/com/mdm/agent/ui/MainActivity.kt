@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.UserManager
+import android.provider.Settings
 import android.util.Log
 import android.widget.Button
 import android.widget.TextView
@@ -17,6 +18,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.work.WorkManager
 import com.mdm.agent.R
 import com.mdm.agent.receivers.MDMDeviceAdminReceiver
+import com.mdm.agent.services.FloatingHomeService
 import com.mdm.agent.services.HeartbeatService
 import com.mdm.agent.services.HeartbeatWorker
 import com.mdm.agent.services.KioskPolicy
@@ -46,6 +48,36 @@ class MainActivity : AppCompatActivity() {
         findViewById<Button>(R.id.removeMdmButton).setOnClickListener {
             confirmRemoveMdm()
         }
+
+        maybeRequestOverlayPermission()
+    }
+
+    /**
+     * The floating "return to kiosk" button must draw over other apps. This permission can't
+     * be granted silently (not even by a Device Owner), so prompt the admin to enable it once.
+     */
+    private fun maybeRequestOverlayPermission() {
+        if (FloatingHomeService.canDrawOverlays(this)) return
+        AlertDialog.Builder(this)
+            .setTitle("Permitir botão de voltar ao kiosk")
+            .setMessage(
+                "Para mostrar o botão flutuante que volta ao kiosk por cima de outros apps, " +
+                    "ative \"Permitir sobreposição a outros apps\" para o MDM Agent."
+            )
+            .setPositiveButton("Abrir") { _, _ ->
+                try {
+                    startActivity(
+                        Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:$packageName")
+                        )
+                    )
+                } catch (e: Exception) {
+                    Log.w(TAG, "Cannot open overlay settings", e)
+                }
+            }
+            .setNegativeButton("Agora não", null)
+            .show()
     }
 
     private fun confirmRemoveMdm() {
