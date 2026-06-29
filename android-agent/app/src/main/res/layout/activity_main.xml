@@ -27,6 +27,18 @@
         android:text="Entrar no Modo Kiosk"
         android:visibility="gone"
         app:layout_constraintTop_toBottomOf="@id/mainStatusText"
+        app:layout_constraintBottom_toTopOf="@id/removeMdmButton"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <Button
+        android:id="@+id/removeMdmButton"
+        style="@style/Widget.MaterialComponents.Button.OutlinedButton"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="24dp"
+        android:text="Remover MDM (permitir desinstalação)"
+        app:layout_constraintTop_toBottomOf="@id/enterKioskButton"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
