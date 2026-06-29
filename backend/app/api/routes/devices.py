@@ -1,4 +1,5 @@
 import json
+import logging
 import secrets
 from datetime import datetime, timezone
 
@@ -18,9 +19,12 @@ from app.schemas.device import (
     DeviceHeartbeat,
     DeviceLocationUpdate,
     DeviceLockRequest,
+    DeviceWipeRequest,
     asset_id_from_pk,
 )
 from app.schemas.command import CommandAck, CommandCreate, CommandResponse
+
+logger = logging.getLogger("mdm.devices")
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
@@ -200,13 +204,28 @@ async def lock_device(
 @router.post("/{device_id}/wipe", response_model=CommandResponse)
 async def wipe_device(
     device_id: int,
+    request: DeviceWipeRequest,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    # Safety guard: the caller must echo back the device's asset ID so a wipe
+    # cannot be issued by accident. This is a destructive, irreversible action.
+    expected = asset_id_from_pk(device.id)
+    if (request.confirm or "").strip().upper() != expected.upper():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Confirmação inválida. Digite o ID do dispositivo ({expected}) para confirmar o wipe.",
+        )
+
+    logger.warning(
+        "WIPE issued for device id=%s asset_id=%s by user=%s",
+        device.id, expected, current_user.get("email") if isinstance(current_user, dict) else current_user,
+    )
 
     command = DeviceCommand(
         device_id=device_id,

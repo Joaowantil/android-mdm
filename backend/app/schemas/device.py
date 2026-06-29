@@ -34,6 +34,10 @@ class DeviceLockRequest(BaseModel):
     pin: str | None = None
 
 
+class DeviceWipeRequest(BaseModel):
+    confirm: str | None = None
+
+
 def asset_id_from_pk(pk: int) -> str:
     """Human-friendly device identifier derived from the primary key."""
     return f"MDM-{pk:04d}"
