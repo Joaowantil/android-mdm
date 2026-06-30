@@ -48,7 +48,7 @@ async def generate_enrollment_token(
     )
     db.add(device)
     await db.flush()
-    return {"enrollment_token": token, "device_id": device.device_id}
+    return {"enrollment_token": token, "device_id": device.device_id, "id": device.id}
 
 
 @router.post("/enroll", response_model=DeviceEnrollResponse)
