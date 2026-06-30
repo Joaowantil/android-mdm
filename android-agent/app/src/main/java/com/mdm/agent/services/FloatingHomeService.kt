@@ -123,8 +123,8 @@ class FloatingHomeService : Service() {
     private fun roundBackground(): android.graphics.drawable.GradientDrawable =
         android.graphics.drawable.GradientDrawable().apply {
             shape = android.graphics.drawable.GradientDrawable.OVAL
-            setColor(0xCC1565C0.toInt())
-            setStroke((2 * resources.displayMetrics.density).toInt(), Color.WHITE)
+            setColor(0x99555555.toInt())
+            setStroke((2 * resources.displayMetrics.density).toInt(), 0xCCFFFFFF.toInt())
         }
 
     override fun onDestroy() {
