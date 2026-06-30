@@ -9,15 +9,24 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.content.res.ColorStateList
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
 import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
+import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
+import android.net.ConnectivityManager
+import android.net.wifi.WifiManager
+import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.WindowManager
+import android.widget.FrameLayout
 import android.text.InputType
 import android.util.TypedValue
 import android.view.Gravity
@@ -71,6 +80,15 @@ class KioskActivity : AppCompatActivity() {
         }
     }
 
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private var wifiView: WifiSignalView? = null
+    private val statusTick = object : Runnable {
+        override fun run() {
+            updateStatusStrip()
+            statusHandler.postDelayed(this, 10_000)
+        }
+    }
+
     private val exitReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             // Dashboard turned kiosk off entirely.
@@ -88,7 +106,17 @@ class KioskActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // On Android < 9 the system status bar is stripped (empty) inside lock task, so hide it
+        // and draw our own strip with clock/wifi/battery instead.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+            )
+        }
         setContentView(R.layout.activity_kiosk)
+        styleBars()
+        setupStatusStrip()
 
         ContextCompat.registerReceiver(
             this,
@@ -108,6 +136,7 @@ class KioskActivity : AppCompatActivity() {
 
         renderEntries(apps, resolveWebLinks())
         showAssetId()
+        updateStatusStrip()
         findViewById<Button>(R.id.kioskExitButton).setOnClickListener { promptPinToExit() }
         startLockTaskSafely()
         // Floating "return to kiosk" button on top of launched apps (needs overlay permission).
@@ -126,6 +155,74 @@ class KioskActivity : AppCompatActivity() {
         // Re-assert lock task in case the user returned here from an allowlisted app.
         startLockTaskSafely()
         FloatingHomeService.start(this)
+        statusHandler.removeCallbacks(statusTick)
+        statusHandler.post(statusTick)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        statusHandler.removeCallbacks(statusTick)
+    }
+
+    /** Gray, more-transparent kiosk header and exit button. */
+    private fun styleBars() {
+        // Use our own gray title bar in the layout instead of the blue action bar.
+        supportActionBar?.hide()
+        findViewById<Button>(R.id.kioskExitButton).apply {
+            backgroundTintList = ColorStateList.valueOf(0x66555555.toInt())
+            setTextColor(Color.WHITE)
+        }
+    }
+
+    private fun setupStatusStrip() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) return
+        val strip = findViewById<LinearLayout>(R.id.kioskStatusStrip)
+        strip.visibility = View.VISIBLE
+        val container = findViewById<FrameLayout>(R.id.kioskWifiContainer)
+        val view = WifiSignalView(this)
+        wifiView = view
+        container.addView(view)
+    }
+
+    private fun updateStatusStrip() {
+        val strip = findViewById<LinearLayout>(R.id.kioskStatusStrip) ?: return
+        if (strip.visibility != View.VISIBLE) return
+
+        val now = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date())
+        findViewById<TextView>(R.id.kioskClock).text = now
+
+        val (connected, level) = wifiState()
+        wifiView?.connected = connected
+        wifiView?.level = level
+
+        findViewById<TextView>(R.id.kioskBattery).text = "${batteryPercent()}%"
+    }
+
+    private fun wifiState(): Pair<Boolean, Int> {
+        return try {
+            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            @Suppress("DEPRECATION")
+            val activeWifi = cm.activeNetworkInfo?.type == ConnectivityManager.TYPE_WIFI &&
+                cm.activeNetworkInfo?.isConnected == true
+            val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
+            @Suppress("DEPRECATION")
+            val rssi = wm.connectionInfo?.rssi ?: -127
+            @Suppress("DEPRECATION")
+            val bars = WifiManager.calculateSignalLevel(rssi, 4) // 0..3
+            (activeWifi && wm.isWifiEnabled) to bars
+        } catch (e: Exception) {
+            false to 0
+        }
+    }
+
+    private fun batteryPercent(): Int {
+        return try {
+            val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
+            bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
+        } catch (e: Exception) {
+            0
+        }
     }
 
     private fun resolveApps(): List<String> =
@@ -291,7 +388,9 @@ class KioskActivity : AppCompatActivity() {
     private fun showAssetId() {
         val assetId = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
             .getString("asset_id", null)
-        title = if (!assetId.isNullOrBlank()) "MDM Agent · $assetId" else "MDM Agent"
+        val label = if (!assetId.isNullOrBlank()) "MDM Agent · $assetId" else "MDM Agent"
+        title = label
+        findViewById<TextView>(R.id.kioskTitle).text = label
     }
 
     private fun promptPinToExit() {
@@ -386,6 +485,7 @@ class KioskActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        statusHandler.removeCallbacks(statusTick)
         try {
             unregisterReceiver(exitReceiver)
         } catch (_: Exception) {
