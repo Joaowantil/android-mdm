@@ -35,6 +35,7 @@ import androidx.appcompat.app.AppCompatActivity
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.mdm.agent.R
+import com.mdm.agent.services.FloatingHomeService
 import com.mdm.agent.services.KioskPolicy
 import org.json.JSONArray
 
@@ -79,6 +80,7 @@ class KioskActivity : AppCompatActivity() {
                 .apply()
             KioskPolicy.disable(this@KioskActivity)
             cancelResumeNotification(this@KioskActivity)
+            FloatingHomeService.stop(this@KioskActivity)
             stopLockTaskSafely()
             finish()
         }
@@ -108,18 +110,22 @@ class KioskActivity : AppCompatActivity() {
         showAssetId()
         findViewById<Button>(R.id.kioskExitButton).setOnClickListener { promptPinToExit() }
         startLockTaskSafely()
+        // Floating "return to kiosk" button on top of launched apps (needs overlay permission).
+        FloatingHomeService.start(this)
     }
 
     override fun onResume() {
         super.onResume()
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         if (!prefs.getBoolean("kiosk_enabled", false)) {
+            FloatingHomeService.stop(this)
             stopLockTaskSafely()
             finish()
             return
         }
         // Re-assert lock task in case the user returned here from an allowlisted app.
         startLockTaskSafely()
+        FloatingHomeService.start(this)
     }
 
     private fun resolveApps(): List<String> =
@@ -325,6 +331,7 @@ class KioskActivity : AppCompatActivity() {
             .putBoolean("kiosk_paused", true)
             .apply()
         KioskPolicy.disable(this)
+        FloatingHomeService.stop(this)
         stopLockTaskSafely()
         postResumeNotification()
         // Send the admin to the home launcher.

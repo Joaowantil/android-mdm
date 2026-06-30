@@ -12,6 +12,7 @@
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
     <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
     <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
         tools:ignore="QueryAllPackagesPermission" />
 
@@ -106,6 +107,11 @@
             android:name=".services.HeartbeatService"
             android:exported="false"
             android:foregroundServiceType="dataSync" />
+
+        <!-- Floating "return to kiosk" button overlay -->
+        <service
+            android:name=".services.FloatingHomeService"
+            android:exported="false" />
 
     </application>
 
