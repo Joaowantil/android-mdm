@@ -10,7 +10,8 @@
         android:layout_width="match_parent"
         android:layout_height="48dp"
         android:orientation="horizontal"
-        android:background="#1565C0"
+        android:background="#99555555"
+        android:elevation="6dp"
         android:gravity="center_vertical"
         android:paddingStart="4dp"
         android:paddingEnd="8dp">
