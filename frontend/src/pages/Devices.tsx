@@ -37,6 +37,7 @@ export default function Devices() {
   const [devices, setDevices] = useState<Device[]>([])
   const [enrollDialog, setEnrollDialog] = useState(false)
   const [enrollToken, setEnrollToken] = useState('')
+  const [enrollDeviceId, setEnrollDeviceId] = useState<number | null>(null)
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const navigate = useNavigate()
 
@@ -57,11 +58,38 @@ export default function Devices() {
     try {
       const response = await api.get('/devices/enrollment-token')
       setEnrollToken(response.data.enrollment_token)
+      setEnrollDeviceId(response.data.id ?? null)
       setEnrollDialog(true)
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao gerar token' })
     }
   }
+
+  // While the QR dialog is open, watch for the device to finish enrolling, then
+  // close the dialog and refresh the list automatically.
+  useEffect(() => {
+    if (!enrollDialog || enrollDeviceId == null) return
+    const interval = setInterval(async () => {
+      try {
+        const response = await api.get('/devices')
+        setDevices(response.data)
+        const enrolled = response.data.find(
+          (d: Device) => d.id === enrollDeviceId && d.status !== 'pending'
+        )
+        if (enrolled) {
+          setEnrollDialog(false)
+          setEnrollDeviceId(null)
+          setAlert({
+            type: 'success',
+            message: `Dispositivo ${enrolled.asset_id || `MDM-${enrolled.id}`} registrado`,
+          })
+        }
+      } catch (err) {
+        console.error('Failed to poll enrollment:', err)
+      }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [enrollDialog, enrollDeviceId])
 
   const lockDevice = async (id: number) => {
     try {
