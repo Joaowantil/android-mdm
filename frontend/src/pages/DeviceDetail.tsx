@@ -61,6 +61,8 @@ export default function DeviceDetail() {
   const [kioskPin, setKioskPin] = useState('')
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
   const [lockPin, setLockPin] = useState('')
+  const [wipeDialogOpen, setWipeDialogOpen] = useState(false)
+  const [wipeConfirm, setWipeConfirm] = useState('')
 
   useEffect(() => {
     loadDevice()
@@ -101,11 +103,18 @@ export default function DeviceDetail() {
     }
   }
 
+  const assetId = device?.asset_id || (device ? `MDM-${device.id}` : '')
+
   const wipeDevice = async () => {
-    if (!confirm('ATENÇÃO: Isso apagará TODOS os dados do dispositivo. Continuar?')) return
+    if (wipeConfirm.trim().toUpperCase() !== assetId.toUpperCase()) {
+      setAlert({ type: 'error', message: `Digite o ID do dispositivo (${assetId}) para confirmar` })
+      return
+    }
     try {
-      await api.post(`/devices/${id}/wipe`)
+      await api.post(`/devices/${id}/wipe`, { confirm: wipeConfirm.trim() })
       setAlert({ type: 'success', message: 'Comando de wipe enviado' })
+      setWipeDialogOpen(false)
+      setWipeConfirm('')
       loadDevice()
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao executar wipe' })
@@ -332,7 +341,7 @@ export default function DeviceDetail() {
                   variant="contained"
                   color="error"
                   startIcon={<DeleteForever />}
-                  onClick={wipeDevice}
+                  onClick={() => { setWipeConfirm(''); setWipeDialogOpen(true) }}
                   fullWidth
                 >
                   Wipe (Apagar Tudo)
@@ -364,6 +373,36 @@ export default function DeviceDetail() {
           <Button onClick={() => setLockDialogOpen(false)}>Cancelar</Button>
           <Button variant="contained" color="warning" onClick={lockDevice}>
             Bloquear
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={wipeDialogOpen} onClose={() => setWipeDialogOpen(false)}>
+        <DialogTitle>Apagar dispositivo (Wipe)</DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Ação irreversível: isso restaura o dispositivo de fábrica e apaga TODOS os dados.
+          </Alert>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            Para confirmar, digite o ID do dispositivo: <strong>{assetId}</strong>
+          </Typography>
+          <TextField
+            autoFocus
+            fullWidth
+            label="ID do dispositivo"
+            value={wipeConfirm}
+            onChange={(e) => setWipeConfirm(e.target.value)}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setWipeDialogOpen(false)}>Cancelar</Button>
+          <Button
+            variant="contained"
+            color="error"
+            disabled={wipeConfirm.trim().toUpperCase() !== assetId.toUpperCase()}
+            onClick={wipeDevice}
+          >
+            Apagar tudo
           </Button>
         </DialogActions>
       </Dialog>
