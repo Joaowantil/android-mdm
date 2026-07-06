@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import {
   Box,
@@ -17,6 +17,8 @@ import {
   DialogTitle,
   DialogContent,
   DialogActions,
+  CircularProgress,
+  Link,
 } from '@mui/material'
 import {
   Lock,
@@ -61,10 +63,39 @@ export default function DeviceDetail() {
   const [kioskPin, setKioskPin] = useState('')
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
   const [lockPin, setLockPin] = useState('')
+  const [locating, setLocating] = useState(false)
+  const prevLocRef = useRef<string | null>(null)
 
   useEffect(() => {
     loadDevice()
   }, [id])
+
+  // While a location request is in flight, poll the device until it reports a
+  // fresh position (or give up after a timeout if the device is offline).
+  useEffect(() => {
+    if (!locating) return
+    const started = Date.now()
+    const interval = setInterval(async () => {
+      try {
+        const response = await api.get(`/devices/${id}`)
+        const dev: Device = response.data
+        setDevice(dev)
+        if (dev.location_updated_at && dev.location_updated_at !== prevLocRef.current) {
+          setLocating(false)
+          setAlert({ type: 'success', message: 'Localização atualizada' })
+        } else if (Date.now() - started > 45000) {
+          setLocating(false)
+          setAlert({
+            type: 'error',
+            message: 'O dispositivo não respondeu à localização (pode estar offline)',
+          })
+        }
+      } catch {
+        /* keep polling */
+      }
+    }, 3000)
+    return () => clearInterval(interval)
+  }, [locating, id])
 
   const loadDevice = async () => {
     try {
@@ -114,8 +145,13 @@ export default function DeviceDetail() {
 
   const locateDevice = async () => {
     try {
+      prevLocRef.current = device?.location_updated_at ?? null
       await api.post(`/devices/${id}/locate`)
-      setAlert({ type: 'success', message: 'Solicitação de localização enviada' })
+      setLocating(true)
+      setAlert({
+        type: 'success',
+        message: 'Solicitação enviada. Aguardando o dispositivo responder...',
+      })
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao localizar' })
     }
@@ -235,15 +271,41 @@ export default function DeviceDetail() {
                 </Grid>
               </Grid>
 
-              {device.latitude && device.longitude && (
+              {(device.latitude && device.longitude) || locating ? (
                 <Box sx={{ mt: 2 }}>
                   <Divider sx={{ my: 2 }} />
                   <Typography variant="body2" color="text.secondary">Localização</Typography>
-                  <Typography>
-                    Lat: {device.latitude.toFixed(6)}, Lng: {device.longitude.toFixed(6)}
-                  </Typography>
+                  {locating && (
+                    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, my: 1 }}>
+                      <CircularProgress size={16} />
+                      <Typography variant="body2">Aguardando o dispositivo responder...</Typography>
+                    </Box>
+                  )}
+                  {device.location_address && (
+                    <Typography sx={{ mt: 0.5 }}>{device.location_address}</Typography>
+                  )}
+                  {device.latitude && device.longitude && (
+                    <>
+                      <Typography variant="body2" color="text.secondary" sx={{ mt: 0.5 }}>
+                        Lat: {device.latitude.toFixed(6)}, Lng: {device.longitude.toFixed(6)}
+                        {' · '}
+                        <Link
+                          href={`https://www.openstreetmap.org/?mlat=${device.latitude}&mlon=${device.longitude}#map=17/${device.latitude}/${device.longitude}`}
+                          target="_blank"
+                          rel="noopener"
+                        >
+                          ver no mapa
+                        </Link>
+                      </Typography>
+                      {device.location_updated_at && (
+                        <Typography variant="caption" color="text.secondary">
+                          Atualizada em {new Date(device.location_updated_at).toLocaleString('pt-BR')}
+                        </Typography>
+                      )}
+                    </>
+                  )}
                 </Box>
-              )}
+              ) : null}
             </CardContent>
           </Card>
 
@@ -321,11 +383,12 @@ export default function DeviceDetail() {
                 </Button>
                 <Button
                   variant="outlined"
-                  startIcon={<LocationOn />}
+                  startIcon={locating ? <CircularProgress size={16} /> : <LocationOn />}
                   onClick={locateDevice}
+                  disabled={locating}
                   fullWidth
                 >
-                  Localizar Dispositivo
+                  {locating ? 'Localizando...' : 'Localizar Dispositivo'}
                 </Button>
                 <Divider />
                 <Button
