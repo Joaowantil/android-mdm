@@ -37,6 +37,8 @@ def _run_light_migrations(conn):
         columns = {c["name"] for c in inspector.get_columns("devices")}
         if "kiosk_web_links" not in columns:
             conn.execute(text("ALTER TABLE devices ADD COLUMN kiosk_web_links TEXT"))
+        if "location_address" not in columns:
+            conn.execute(text("ALTER TABLE devices ADD COLUMN location_address VARCHAR"))
     if "policies" in tables:
         columns = {c["name"] for c in inspector.get_columns("policies")}
         if "kiosk_web_links" not in columns:
