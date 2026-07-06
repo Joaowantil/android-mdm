@@ -42,6 +42,10 @@ class HeartbeatService : Service() {
             val intent = Intent(context, HeartbeatService::class.java)
             ContextCompat.startForegroundService(context, intent)
         }
+
+        fun stop(context: Context) {
+            context.stopService(Intent(context, HeartbeatService::class.java))
+        }
     }
 
     override fun onCreate() {

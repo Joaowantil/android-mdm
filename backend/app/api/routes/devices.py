@@ -23,6 +23,7 @@ from app.schemas.device import (
     asset_id_from_pk,
 )
 from app.schemas.command import CommandAck, CommandCreate, CommandResponse
+from app.services.geocode import reverse_geocode
 
 logger = logging.getLogger("mdm.devices")
 
@@ -52,7 +53,7 @@ async def generate_enrollment_token(
     )
     db.add(device)
     await db.flush()
-    return {"enrollment_token": token, "device_id": device.device_id}
+    return {"enrollment_token": token, "device_id": device.device_id, "id": device.id}
 
 
 @router.post("/enroll", response_model=DeviceEnrollResponse)
@@ -366,6 +367,7 @@ async def update_location(
 
     device.latitude = location.latitude
     device.longitude = location.longitude
+    device.location_address = await reverse_geocode(location.latitude, location.longitude)
     device.location_updated_at = datetime.now(timezone.utc)
     await db.flush()
     return {"status": "ok"}

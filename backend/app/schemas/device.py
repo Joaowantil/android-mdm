@@ -57,6 +57,8 @@ class DeviceResponse(BaseModel):
     last_seen: datetime | None
     latitude: float | None
     longitude: float | None
+    location_address: str | None = None
+    location_updated_at: datetime | None = None
     kiosk_enabled: bool
     kiosk_apps: list[str] | None = None
     kiosk_web_links: list[KioskWebLink] | None = None
@@ -73,7 +75,7 @@ class DeviceResponse(BaseModel):
             return json.loads(v) if v else None
         return v
 
-    @field_serializer("last_seen", "enrolled_at", "created_at")
+    @field_serializer("last_seen", "enrolled_at", "created_at", "location_updated_at")
     def _serialize_utc(self, value: datetime | None):
         # SQLite returns naive datetimes; tag them as UTC so the browser
         # converts to the viewer's local timezone instead of treating UTC as
