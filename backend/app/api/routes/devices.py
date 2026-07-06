@@ -11,6 +11,7 @@ from app.core.security import get_current_user
 from app.models.device import Device
 from app.models.command import DeviceCommand
 from app.schemas.device import (
+    ONLINE_THRESHOLD_SECONDS,
     DeviceResponse,
     DeviceUpdate,
     DeviceEnrollRequest,
@@ -162,6 +163,7 @@ async def update_device(
 @router.delete("/{device_id}")
 async def delete_device(
     device_id: int,
+    force: bool = False,
     db: AsyncSession = Depends(get_db),
     _current_user: dict = Depends(get_current_user),
 ):
@@ -169,8 +171,32 @@ async def delete_device(
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    online = False
+    if device.last_seen is not None:
+        last = device.last_seen
+        if last.tzinfo is None:
+            last = last.replace(tzinfo=timezone.utc)
+        online = (datetime.now(timezone.utc) - last).total_seconds() <= ONLINE_THRESHOLD_SECONDS
+
+    # When the device is reachable, ask it to unbind itself (leave kiosk, drop
+    # Device Owner/admin) so it becomes usable again. The record is only removed
+    # once the agent acknowledges the release command (see ack_command). If the
+    # device is offline or the caller forces it, just drop the record.
+    if online and not force:
+        db.add(
+            DeviceCommand(
+                device_id=device.id,
+                command_type="release",
+                status="pending",
+            )
+        )
+        device.status = "releasing"
+        await db.flush()
+        return {"message": "Release requested", "pending": True}
+
     await db.delete(device)
-    return {"message": "Device deleted"}
+    return {"message": "Device deleted", "pending": False}
 
 
 @router.post("/{device_id}/lock", response_model=CommandResponse)
@@ -333,6 +359,17 @@ async def ack_command(
     command.result = json.dumps(ack.result) if ack.result else None
     command.executed_at = datetime.now(timezone.utc)
     await db.flush()
+
+    # A device confirms it unbound itself -> finish the pending deletion.
+    if command.command_type == "release" and ack.status == "executed":
+        dev_result = await db.execute(
+            select(Device).where(Device.id == command.device_id)
+        )
+        dev = dev_result.scalar_one_or_none()
+        if dev is not None:
+            await db.delete(dev)
+            await db.flush()
+
     return {"status": "ok"}
 
 

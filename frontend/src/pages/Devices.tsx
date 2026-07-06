@@ -110,14 +110,60 @@ export default function Devices() {
     }
   }
 
-  const deleteDevice = async (id: number) => {
-    if (!confirm('Tem certeza que deseja remover este dispositivo?')) return
-    try {
-      await api.delete(`/devices/${id}`)
-      setAlert({ type: 'success', message: 'Dispositivo removido' })
-      loadDevices()
-    } catch (err) {
-      setAlert({ type: 'error', message: 'Falha ao remover dispositivo' })
+  const deleteDevice = async (device: Device) => {
+    const label = device.asset_id || `MDM-${device.id}`
+    if (device.is_online) {
+      if (
+        !confirm(
+          `Remover ${label}?\n\nO MDM será desvinculado do aparelho (sai do kiosk, remove o Device Owner) e ele volta ao uso normal. O dispositivo será removido da lista assim que confirmar.`
+        )
+      )
+        return
+      try {
+        const res = await api.delete(`/devices/${device.id}`)
+        if (res.data?.pending) {
+          setAlert({
+            type: 'success',
+            message: 'Liberação solicitada. O dispositivo será removido assim que confirmar.',
+          })
+          loadDevices()
+          // Poll until the backend removes it (after the agent acks the release).
+          const started = Date.now()
+          const iv = setInterval(async () => {
+            try {
+              const r = await api.get('/devices')
+              setDevices(r.data)
+              if (!r.data.find((d: Device) => d.id === device.id) || Date.now() - started > 60000) {
+                clearInterval(iv)
+              }
+            } catch {
+              /* keep polling */
+            }
+          }, 3000)
+        } else {
+          setAlert({ type: 'success', message: 'Dispositivo removido' })
+          loadDevices()
+        }
+      } catch (err) {
+        setAlert({ type: 'error', message: 'Falha ao remover dispositivo' })
+      }
+    } else {
+      if (
+        !confirm(
+          `${label} está offline — não dá para desvincular o MDM remotamente agora.\n\nRemover apenas o registro do painel? O aparelho continuará como Device Owner até ser liberado pelo app (botão "Remover MDM") ou via adb.`
+        )
+      )
+        return
+      try {
+        await api.delete(`/devices/${device.id}?force=true`)
+        setAlert({
+          type: 'success',
+          message: 'Registro removido. Libere o aparelho pelo app (Remover MDM) ou via adb.',
+        })
+        loadDevices()
+      } catch (err) {
+        setAlert({ type: 'error', message: 'Falha ao remover dispositivo' })
+      }
     }
   }
 
@@ -127,6 +173,7 @@ export default function Devices() {
       case 'enrolled':
         return 'success'
       case 'locked':
+      case 'releasing':
         return 'warning'
       case 'wiped':
         return 'error'
@@ -239,7 +286,7 @@ export default function Devices() {
                           <IconButton
                             size="small"
                             color="error"
-                            onClick={() => deleteDevice(device.id)}
+                            onClick={() => deleteDevice(device)}
                           >
                             <Delete />
                           </IconButton>
