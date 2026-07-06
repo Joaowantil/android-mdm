@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Devices from './pages/Devices'
 import DeviceDetail from './pages/DeviceDetail'
 import Policies from './pages/Policies'
+import Users from './pages/Users'
 import Layout from './components/Layout'
 
 function App() {
@@ -25,12 +26,13 @@ function App() {
   }
 
   return (
-    <Layout onLogout={() => setToken(null)}>
+    <Layout onLogout={() => { localStorage.removeItem('mdm_role'); localStorage.removeItem('mdm_email'); setToken(null) }}>
       <Routes>
         <Route path="/" element={<Dashboard />} />
         <Route path="/devices" element={<Devices />} />
         <Route path="/devices/:id" element={<DeviceDetail />} />
         <Route path="/policies" element={<Policies />} />
+        <Route path="/users" element={<Users />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Layout>
