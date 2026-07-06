@@ -25,6 +25,7 @@ class Device(Base):
     # Location
     latitude = Column(Float, nullable=True)
     longitude = Column(Float, nullable=True)
+    location_address = Column(String, nullable=True)
     location_updated_at = Column(DateTime(timezone=True), nullable=True)
 
     # Enrollment

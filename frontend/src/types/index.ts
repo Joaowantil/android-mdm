@@ -13,6 +13,8 @@ export interface Device {
   wifi_ssid: string | null
   latitude: number | null
   longitude: number | null
+  location_address: string | null
+  location_updated_at: string | null
   kiosk_enabled: boolean
   kiosk_apps: string[] | null
   kiosk_web_links: { label: string; url: string }[] | null

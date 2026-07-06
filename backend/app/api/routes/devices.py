@@ -21,6 +21,7 @@ from app.schemas.device import (
     asset_id_from_pk,
 )
 from app.schemas.command import CommandAck, CommandCreate, CommandResponse
+from app.services.geocode import reverse_geocode
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
 
@@ -349,6 +350,7 @@ async def update_location(
 
     device.latitude = location.latitude
     device.longitude = location.longitude
+    device.location_address = await reverse_geocode(location.latitude, location.longitude)
     device.location_updated_at = datetime.now(timezone.utc)
     await db.flush()
     return {"status": "ok"}
