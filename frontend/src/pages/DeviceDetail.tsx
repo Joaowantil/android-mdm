@@ -233,6 +233,10 @@ export default function DeviceDetail() {
                     {device.last_seen ? new Date(device.last_seen).toLocaleString('pt-BR') : 'Nunca'}
                   </Typography>
                 </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Rede Wi-Fi</Typography>
+                  <Typography>{device.wifi_ssid || 'N/A'}</Typography>
+                </Grid>
               </Grid>
 
               {device.latitude && device.longitude && (

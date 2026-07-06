@@ -10,6 +10,7 @@ export interface Device {
   status: string
   is_online: boolean
   last_seen: string | null
+  wifi_ssid: string | null
   latitude: number | null
   longitude: number | null
   kiosk_enabled: boolean
