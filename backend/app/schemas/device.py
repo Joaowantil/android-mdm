@@ -51,6 +51,7 @@ class DeviceResponse(BaseModel):
     status: str
     is_online: bool
     last_seen: datetime | None
+    wifi_ssid: str | None = None
     latitude: float | None
     longitude: float | None
     location_address: str | None = None
@@ -132,6 +133,7 @@ class DeviceHeartbeat(BaseModel):
     is_online: bool = True
     installed_apps: list[str] | None = None
     fcm_token: str | None = None
+    wifi_ssid: str | None = None
 
 
 class DeviceLocationUpdate(BaseModel):

@@ -8,6 +8,8 @@ import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.net.ConnectivityManager
+import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Environment
@@ -48,7 +50,8 @@ object CommandProcessor {
                 storage_total = storageInfo.second,
                 is_online = true,
                 installed_apps = getInstalledApps(context),
-                fcm_token = null
+                fcm_token = null,
+                wifi_ssid = getWifiSsid(context)
             )
         )
 
@@ -281,5 +284,34 @@ object CommandProcessor {
     private fun getInstalledApps(context: Context): List<String> {
         return context.packageManager.getInstalledApplications(0)
             .map { it.packageName }
+    }
+
+    /**
+     * Best-effort current Wi-Fi network name. Returns null when not connected to
+     * Wi-Fi or when the SSID can't be read (e.g. missing location permission on
+     * newer Android). Never throws.
+     */
+    private fun getWifiSsid(context: Context): String? {
+        return try {
+            val cm = context.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
+            @Suppress("DEPRECATION")
+            val activeType = cm.activeNetworkInfo?.type
+            @Suppress("DEPRECATION")
+            if (activeType != ConnectivityManager.TYPE_WIFI) return null
+
+            val wifi = context.applicationContext
+                .getSystemService(Context.WIFI_SERVICE) as WifiManager
+            @Suppress("DEPRECATION")
+            val raw = wifi.connectionInfo?.ssid ?: return null
+            val ssid = raw.trim().removeSurrounding("\"")
+            if (ssid.isBlank() || ssid.equals("<unknown ssid>", ignoreCase = true) || ssid == "0x") {
+                null
+            } else {
+                ssid
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read Wi-Fi SSID", e)
+            null
+        }
     }
 }

@@ -286,6 +286,8 @@ async def device_heartbeat(
         device.fcm_token = heartbeat.fcm_token
     if heartbeat.installed_apps:
         device.installed_apps = json.dumps(heartbeat.installed_apps)
+    if heartbeat.wifi_ssid is not None:
+        device.wifi_ssid = heartbeat.wifi_ssid or None
 
     await db.flush()
 
