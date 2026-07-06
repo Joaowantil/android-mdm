@@ -29,6 +29,8 @@ export default function Login({ onLogin }: LoginProps) {
 
     try {
       const response = await api.post('/auth/login', { email, password })
+      localStorage.setItem('mdm_role', response.data.user_role)
+      localStorage.setItem('mdm_email', response.data.user_email)
       onLogin(response.data.access_token)
     } catch (err: unknown) {
       const axiosError = err as { response?: { data?: { detail?: string } } }
@@ -95,10 +97,6 @@ export default function Login({ onLogin }: LoginProps) {
                 {loading ? 'Entrando...' : 'Entrar'}
               </Button>
             </form>
-
-            <Typography variant="caption" color="text.secondary" sx={{ mt: 2, display: 'block', textAlign: 'center' }}>
-              Padrão: admin@mdm.local / admin123
-            </Typography>
           </CardContent>
         </Card>
       </Box>

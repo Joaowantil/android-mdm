@@ -19,6 +19,7 @@ import {
   Dashboard as DashboardIcon,
   PhoneAndroid as DevicesIcon,
   Policy as PolicyIcon,
+  People as PeopleIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material'
 
@@ -28,6 +29,7 @@ const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Dispositivos', icon: <DevicesIcon />, path: '/devices' },
   { text: 'Políticas', icon: <PolicyIcon />, path: '/policies' },
+  { text: 'Usuários', icon: <PeopleIcon />, path: '/users', adminOnly: true },
 ]
 
 interface LayoutProps {
@@ -39,6 +41,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
   const navigate = useNavigate()
   const location = useLocation()
+  const isAdmin = localStorage.getItem('mdm_role') === 'admin'
 
   const drawer = (
     <Box>
@@ -48,7 +51,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
         </Typography>
       </Toolbar>
       <List>
-        {menuItems.map((item) => (
+        {menuItems.filter((item) => !item.adminOnly || isAdmin).map((item) => (
           <ListItem key={item.text} disablePadding>
             <ListItemButton
               selected={location.pathname === item.path}
