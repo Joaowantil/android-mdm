@@ -68,6 +68,19 @@ object CommandProcessor {
 
     private suspend fun executeCommand(context: Context, command: PendingCommand) {
         Log.d(TAG, "Executing command: ${command.command_type}")
+
+        // Releasing tears down this very service, so acknowledge first (the server
+        // deletes the device once it sees the ack) and then unbind.
+        if (command.command_type == "release") {
+            acknowledge(command.id, true)
+            try {
+                MdmRemover.release(context)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to release device", e)
+            }
+            return
+        }
+
         val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
         val adminComponent = ComponentName(context, MDMDeviceAdminReceiver::class.java)
 

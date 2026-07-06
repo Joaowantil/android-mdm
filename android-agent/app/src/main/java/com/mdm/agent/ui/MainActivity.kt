@@ -1,13 +1,10 @@
 package com.mdm.agent.ui
 
-import android.app.admin.DevicePolicyManager
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import android.os.UserManager
 import android.provider.Settings
 import android.util.Log
 import android.widget.Button
@@ -15,13 +12,11 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
-import androidx.work.WorkManager
 import com.mdm.agent.R
-import com.mdm.agent.receivers.MDMDeviceAdminReceiver
 import com.mdm.agent.services.FloatingHomeService
 import com.mdm.agent.services.HeartbeatService
 import com.mdm.agent.services.HeartbeatWorker
-import com.mdm.agent.services.KioskPolicy
+import com.mdm.agent.services.MdmRemover
 
 class MainActivity : AppCompatActivity() {
 
@@ -93,53 +88,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun removeMdm() {
-        val dpm = getSystemService(Context.DEVICE_POLICY_SERVICE) as DevicePolicyManager
-        val admin = ComponentName(this, MDMDeviceAdminReceiver::class.java)
-
-        // 1) Leave kiosk / lock task so nothing blocks removal.
-        try {
-            KioskPolicy.disable(this)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to disable kiosk policy", e)
-        }
+        // Make sure we're not pinned before running the shared teardown.
         try {
             stopLockTask()
         } catch (e: Exception) {
             Log.w(TAG, "Not in lock task", e)
         }
 
-        // 2) Stop background work.
-        HeartbeatService.stop(this)
-        WorkManager.getInstance(this).cancelUniqueWork(HeartbeatWorker.WORK_NAME)
+        val released = MdmRemover.release(this)
 
-        // 3) Drop any restrictions that could block uninstall, then release ownership.
-        if (dpm.isDeviceOwnerApp(packageName)) {
-            try {
-                dpm.clearUserRestriction(admin, UserManager.DISALLOW_UNINSTALL_APPS)
-                dpm.clearUserRestriction(admin, UserManager.DISALLOW_FACTORY_RESET)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to clear restrictions", e)
-            }
-            try {
-                @Suppress("DEPRECATION")
-                dpm.clearDeviceOwnerApp(packageName)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to clear device owner", e)
-            }
-        }
-        if (dpm.isAdminActive(admin)) {
-            try {
-                dpm.removeActiveAdmin(admin)
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to remove active admin", e)
-            }
-        }
-
-        // 4) Forget enrollment locally.
-        getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE).edit().clear().apply()
-
-        // 5) Launch the system uninstall flow.
-        if (dpm.isDeviceOwnerApp(packageName) || dpm.isAdminActive(admin)) {
+        if (!released) {
             Toast.makeText(
                 this,
                 "Não foi possível remover automaticamente. Use o adb: dpm remove-active-admin.",
