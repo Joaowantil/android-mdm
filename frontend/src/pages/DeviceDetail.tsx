@@ -106,7 +106,13 @@ export default function DeviceDetail() {
       setKioskWebLinks(
         (dev.kiosk_web_links || []).map((l) => `${l.label} | ${l.url}`).join('\n')
       )
-    } catch (err) {
+    } catch (err: unknown) {
+      // Device removed (e.g. released and deleted) -> go back to the list.
+      const e = err as { response?: { status?: number } }
+      if (e.response?.status === 404) {
+        navigate('/devices')
+        return
+      }
       console.error('Failed to load device:', err)
     }
   }

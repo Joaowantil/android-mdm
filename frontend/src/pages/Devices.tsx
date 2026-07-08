@@ -43,6 +43,10 @@ export default function Devices() {
 
   useEffect(() => {
     loadDevices()
+    // Keep the list fresh on its own so changes (a device released/removed,
+    // going offline, battery, etc.) show up without a manual reload.
+    const interval = setInterval(loadDevices, 5000)
+    return () => clearInterval(interval)
   }, [])
 
   const loadDevices = async () => {
