@@ -10,6 +10,7 @@ from app.core.database import get_db
 from app.core.security import get_current_user
 from app.models.device import Device
 from app.models.command import DeviceCommand
+from app.models.group import Group
 from app.schemas.device import (
     ONLINE_THRESHOLD_SECONDS,
     DeviceResponse,
@@ -340,10 +341,18 @@ async def device_heartbeat(
         })
         cmd.status = "sent"
 
+    group_name = None
+    if device.group_id is not None:
+        group_result = await db.execute(
+            select(Group.name).where(Group.id == device.group_id)
+        )
+        group_name = group_result.scalar_one_or_none()
+
     await db.flush()
     return {
         "status": "ok",
         "asset_id": asset_id_from_pk(device.id),
+        "group_name": group_name,
         "commands": pending_commands,
     }
 

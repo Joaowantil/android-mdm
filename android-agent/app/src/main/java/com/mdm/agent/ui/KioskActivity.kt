@@ -85,6 +85,7 @@ class KioskActivity : AppCompatActivity() {
     private val statusTick = object : Runnable {
         override fun run() {
             updateStatusStrip()
+            showAssetId()
             statusHandler.postDelayed(this, 10_000)
         }
     }
@@ -386,9 +387,14 @@ class KioskActivity : AppCompatActivity() {
     }
 
     private fun showAssetId() {
-        val assetId = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-            .getString("asset_id", null)
-        val label = if (!assetId.isNullOrBlank()) "MDM Agent · $assetId" else "MDM Agent"
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        val assetId = prefs.getString("asset_id", null)
+        val group = prefs.getString("group_name", null)
+        val label = buildString {
+            append("MDM Agent")
+            if (!assetId.isNullOrBlank()) append(" · $assetId")
+            if (!group.isNullOrBlank()) append(" · $group")
+        }
         title = label
         findViewById<TextView>(R.id.kioskTitle).text = label
     }

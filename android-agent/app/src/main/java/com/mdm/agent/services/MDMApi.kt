@@ -36,6 +36,7 @@ data class HeartbeatRequest(
 data class HeartbeatResponse(
     val status: String,
     val asset_id: String?,
+    val group_name: String? = null,
     val commands: List<PendingCommand>
 )
 
