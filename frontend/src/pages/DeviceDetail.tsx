@@ -19,7 +19,11 @@ import {
   DialogActions,
   CircularProgress,
   Link,
+  Select,
+  MenuItem,
+  FormControl,
 } from '@mui/material'
+import { SelectChangeEvent } from '@mui/material/Select'
 import {
   Lock,
   DeleteForever,
@@ -27,7 +31,8 @@ import {
   ArrowBack,
 } from '@mui/icons-material'
 import api from '../services/api'
-import { Device } from '../types'
+import { Device, Group } from '../types'
+import { lastOnlineText } from '../utils/time'
 
 function parseWebLinks(raw: string): { label: string; url: string }[] {
   return raw
@@ -64,11 +69,32 @@ export default function DeviceDetail() {
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
   const [lockPin, setLockPin] = useState('')
   const [locating, setLocating] = useState(false)
+  const [groups, setGroups] = useState<Group[]>([])
   const prevLocRef = useRef<string | null>(null)
 
   useEffect(() => {
     loadDevice()
+    loadGroups()
   }, [id])
+
+  const loadGroups = async () => {
+    try {
+      const response = await api.get('/groups')
+      setGroups(response.data)
+    } catch (err) {
+      console.error('Failed to load groups:', err)
+    }
+  }
+
+  const assignGroup = async (groupId: number | null) => {
+    try {
+      await api.put(`/devices/${id}`, { group_id: groupId })
+      setDevice((prev) => (prev ? { ...prev, group_id: groupId } : prev))
+      setAlert({ type: 'success', message: 'Grupo atualizado' })
+    } catch {
+      setAlert({ type: 'error', message: 'Falha ao alterar o grupo' })
+    }
+  }
 
   // While a location request is in flight, poll the device until it reports a
   // fresh position (or give up after a timeout if the device is offline).
@@ -270,14 +296,38 @@ export default function DeviceDetail() {
                   </Typography>
                 </Grid>
                 <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">Último contato</Typography>
-                  <Typography>
-                    {device.last_seen ? new Date(device.last_seen).toLocaleString('pt-BR') : 'Nunca'}
-                  </Typography>
+                  <Typography variant="body2" color="text.secondary">Última vez online</Typography>
+                  <Typography>{lastOnlineText(device.last_seen)}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">Rede Wi-Fi</Typography>
                   <Typography>{device.wifi_ssid || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Grupo / Operação</Typography>
+                  <FormControl size="small" variant="standard" sx={{ minWidth: 160, mt: 0.5 }}>
+                    <Select
+                      displayEmpty
+                      value={device.group_id != null ? String(device.group_id) : ''}
+                      onChange={(e: SelectChangeEvent) =>
+                        assignGroup(e.target.value ? Number(e.target.value) : null)
+                      }
+                      renderValue={(v) =>
+                        v
+                          ? groups.find((g) => g.id === Number(v))?.name || '-'
+                          : <em>Sem grupo</em>
+                      }
+                    >
+                      <MenuItem value="">
+                        <em>Sem grupo</em>
+                      </MenuItem>
+                      {groups.map((g) => (
+                        <MenuItem key={g.id} value={String(g.id)}>
+                          {g.name}
+                        </MenuItem>
+                      ))}
+                    </Select>
+                  </FormControl>
                 </Grid>
               </Grid>
 

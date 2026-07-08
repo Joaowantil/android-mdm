@@ -5,6 +5,7 @@ import Dashboard from './pages/Dashboard'
 import Devices from './pages/Devices'
 import DeviceDetail from './pages/DeviceDetail'
 import Policies from './pages/Policies'
+import Groups from './pages/Groups'
 import Users from './pages/Users'
 import Layout from './components/Layout'
 
@@ -32,6 +33,7 @@ function App() {
         <Route path="/devices" element={<Devices />} />
         <Route path="/devices/:id" element={<DeviceDetail />} />
         <Route path="/policies" element={<Policies />} />
+        <Route path="/groups" element={<Groups />} />
         <Route path="/users" element={<Users />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>

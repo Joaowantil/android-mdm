@@ -1,4 +1,4 @@
-from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, Float, Text, ForeignKey
 from sqlalchemy.sql import func
 
 from app.core.database import Base
@@ -21,6 +21,9 @@ class Device(Base):
     is_online = Column(Boolean, default=False)
     last_seen = Column(DateTime(timezone=True), nullable=True)
     wifi_ssid = Column(String, nullable=True)
+
+    # Grouping (e.g. operation the device belongs to)
+    group_id = Column(Integer, ForeignKey("groups.id"), nullable=True)
 
     # Location
     latitude = Column(Float, nullable=True)
