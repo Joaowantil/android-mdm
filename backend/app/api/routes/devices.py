@@ -124,6 +124,10 @@ async def update_device(
     if update.name is not None:
         device.name = update.name
 
+    # group_id is settable to a value or explicitly to null (remove from group).
+    if "group_id" in update.model_fields_set:
+        device.group_id = update.group_id
+
     kiosk_changed = False
     if update.kiosk_apps is not None:
         device.kiosk_apps = json.dumps(update.kiosk_apps)

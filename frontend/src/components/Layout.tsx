@@ -19,6 +19,7 @@ import {
   Dashboard as DashboardIcon,
   PhoneAndroid as DevicesIcon,
   Policy as PolicyIcon,
+  Workspaces as GroupsIcon,
   People as PeopleIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material'
@@ -29,6 +30,7 @@ const menuItems = [
   { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
   { text: 'Dispositivos', icon: <DevicesIcon />, path: '/devices' },
   { text: 'Políticas', icon: <PolicyIcon />, path: '/policies' },
+  { text: 'Grupos', icon: <GroupsIcon />, path: '/groups' },
   { text: 'Usuários', icon: <PeopleIcon />, path: '/users', adminOnly: true },
 ]
 
