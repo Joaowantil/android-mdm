@@ -20,10 +20,14 @@ import {
   IconButton,
   Alert,
   Tooltip,
+  List,
+  ListItem,
+  ListItemText,
+  Checkbox,
 } from '@mui/material'
-import { Add, Delete, Edit } from '@mui/icons-material'
+import { Add, Delete, Edit, Devices as DevicesIcon } from '@mui/icons-material'
 import api from '../services/api'
-import { Group } from '../types'
+import { Group, Device } from '../types'
 
 export default function Groups() {
   const [groups, setGroups] = useState<Group[]>([])
@@ -31,6 +35,8 @@ export default function Groups() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editTarget, setEditTarget] = useState<Group | null>(null)
   const [name, setName] = useState('')
+  const [devices, setDevices] = useState<Device[]>([])
+  const [manageTarget, setManageTarget] = useState<Group | null>(null)
 
   useEffect(() => {
     loadGroups()
@@ -72,6 +78,31 @@ export default function Groups() {
     } catch (err: unknown) {
       const e = err as { response?: { data?: { detail?: string } } }
       setAlert({ type: 'error', message: e.response?.data?.detail || 'Falha ao salvar grupo' })
+    }
+  }
+
+  const openManage = async (group: Group) => {
+    setManageTarget(group)
+    try {
+      const response = await api.get('/devices')
+      setDevices(response.data)
+    } catch {
+      setAlert({ type: 'error', message: 'Falha ao carregar dispositivos' })
+    }
+  }
+
+  const toggleDevice = async (device: Device, assign: boolean) => {
+    if (!manageTarget) return
+    try {
+      await api.put(`/devices/${device.id}`, { group_id: assign ? manageTarget.id : null })
+      setDevices((prev) =>
+        prev.map((d) =>
+          d.id === device.id ? { ...d, group_id: assign ? manageTarget.id : null } : d
+        )
+      )
+      loadGroups()
+    } catch {
+      setAlert({ type: 'error', message: 'Falha ao atualizar o dispositivo' })
     }
   }
 
@@ -132,6 +163,11 @@ export default function Groups() {
                         <Chip label={group.device_count} size="small" variant="outlined" />
                       </TableCell>
                       <TableCell>
+                        <Tooltip title="Gerenciar dispositivos">
+                          <IconButton size="small" onClick={() => openManage(group)}>
+                            <DevicesIcon />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Renomear">
                           <IconButton size="small" onClick={() => openEdit(group)}>
                             <Edit />
@@ -170,6 +206,50 @@ export default function Groups() {
           <Button variant="contained" onClick={save} disabled={!name.trim()}>
             Salvar
           </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog
+        open={manageTarget !== null}
+        onClose={() => setManageTarget(null)}
+        maxWidth="sm"
+        fullWidth
+      >
+        <DialogTitle>Dispositivos · {manageTarget?.name}</DialogTitle>
+        <DialogContent dividers>
+          {devices.length === 0 ? (
+            <Typography color="text.secondary">Nenhum dispositivo cadastrado.</Typography>
+          ) : (
+            <List dense>
+              {devices.map((device) => {
+                const inThisGroup = device.group_id === manageTarget?.id
+                const inOtherGroup = device.group_id != null && !inThisGroup
+                const otherName = groups.find((g) => g.id === device.group_id)?.name
+                return (
+                  <ListItem
+                    key={device.id}
+                    secondaryAction={
+                      <Checkbox
+                        edge="end"
+                        checked={inThisGroup}
+                        onChange={(e) => toggleDevice(device, e.target.checked)}
+                      />
+                    }
+                  >
+                    <ListItemText
+                      primary={device.name || device.asset_id || device.device_id}
+                      secondary={
+                        inOtherGroup ? `Atualmente em: ${otherName || '-'}` : undefined
+                      }
+                    />
+                  </ListItem>
+                )
+              })}
+            </List>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setManageTarget(null)}>Fechar</Button>
         </DialogActions>
       </Dialog>
     </Box>
