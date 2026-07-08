@@ -67,6 +67,11 @@ object CommandProcessor {
             prefs.edit().putString("asset_id", assetId).apply()
         }
 
+        response.body()?.let { body ->
+            val group = body.group_name?.takeIf { it.isNotBlank() }
+            prefs.edit().putString("group_name", group).apply()
+        }
+
         response.body()?.commands?.forEach { command ->
             executeCommand(context, command)
         }
