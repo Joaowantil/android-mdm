@@ -11,6 +11,7 @@ export interface Device {
   is_online: boolean
   last_seen: string | null
   wifi_ssid: string | null
+  group_id: number | null
   latitude: number | null
   longitude: number | null
   location_address: string | null
@@ -43,6 +44,13 @@ export interface Policy {
   uninstall_apps_disabled: boolean
   factory_reset_disabled: boolean
   is_active: boolean
+  created_at: string | null
+}
+
+export interface Group {
+  id: number
+  name: string
+  device_count: number
   created_at: string | null
 }
 

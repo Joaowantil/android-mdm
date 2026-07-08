@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import {
   Grid,
   Card,
+  CardActionArea,
   CardContent,
   Typography,
   Box,
@@ -48,10 +49,10 @@ export default function Dashboard() {
   }
 
   const statCards = [
-    { label: 'Total de Dispositivos', value: stats.total, icon: <PhoneAndroid />, color: '#1976d2' },
-    { label: 'Online', value: stats.online, icon: <CheckCircle />, color: '#2e7d32' },
-    { label: 'Offline', value: stats.offline, icon: <Cancel />, color: '#d32f2f' },
-    { label: 'Bloqueados', value: stats.locked, icon: <Lock />, color: '#ed6c02' },
+    { label: 'Total de Dispositivos', value: stats.total, icon: <PhoneAndroid />, color: '#1976d2', to: '/devices' },
+    { label: 'Online', value: stats.online, icon: <CheckCircle />, color: '#2e7d32', to: '/devices?status=online' },
+    { label: 'Offline', value: stats.offline, icon: <Cancel />, color: '#d32f2f', to: '/devices?status=offline' },
+    { label: 'Bloqueados', value: stats.locked, icon: <Lock />, color: '#ed6c02', to: '/devices?status=locked' },
   ]
 
   return (
@@ -64,17 +65,19 @@ export default function Dashboard() {
         {statCards.map((stat) => (
           <Grid item xs={12} sm={6} md={3} key={stat.label}>
             <Card>
-              <CardContent>
-                <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                  <Box sx={{ color: stat.color }}>{stat.icon}</Box>
-                  <Box>
-                    <Typography variant="h4">{stat.value}</Typography>
-                    <Typography variant="body2" color="text.secondary">
-                      {stat.label}
-                    </Typography>
+              <CardActionArea onClick={() => navigate(stat.to)}>
+                <CardContent>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
+                    <Box sx={{ color: stat.color }}>{stat.icon}</Box>
+                    <Box>
+                      <Typography variant="h4">{stat.value}</Typography>
+                      <Typography variant="body2" color="text.secondary">
+                        {stat.label}
+                      </Typography>
+                    </Box>
                   </Box>
-                </Box>
-              </CardContent>
+                </CardContent>
+              </CardActionArea>
             </Card>
           </Grid>
         ))}
