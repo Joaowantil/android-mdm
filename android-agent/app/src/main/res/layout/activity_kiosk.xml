@@ -57,7 +57,7 @@
         android:paddingTop="14dp"
         android:paddingBottom="14dp"
         android:textColor="#FFFFFF"
-        android:textSize="20sp"
+        android:textSize="14sp"
         android:textStyle="bold"
         android:text="MDM Agent" />
 
