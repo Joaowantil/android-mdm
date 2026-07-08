@@ -29,7 +29,8 @@ data class HeartbeatRequest(
     val is_online: Boolean = true,
     val installed_apps: List<String>?,
     val fcm_token: String?,
-    val wifi_ssid: String? = null
+    val wifi_ssid: String? = null,
+    val ip_address: String? = null
 )
 
 data class HeartbeatResponse(

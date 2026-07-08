@@ -21,6 +21,7 @@ class Device(Base):
     is_online = Column(Boolean, default=False)
     last_seen = Column(DateTime(timezone=True), nullable=True)
     wifi_ssid = Column(String, nullable=True)
+    ip_address = Column(String, nullable=True)
 
     # Location
     latitude = Column(Float, nullable=True)

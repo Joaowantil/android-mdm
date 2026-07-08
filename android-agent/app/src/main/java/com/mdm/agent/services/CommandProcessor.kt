@@ -23,6 +23,9 @@ import com.mdm.agent.ui.KioskActivity
 import com.mdm.agent.ui.LockScreenActivity
 import org.json.JSONArray
 import org.json.JSONObject
+import java.net.Inet4Address
+import java.net.NetworkInterface
+import java.util.Collections
 
 /**
  * Shared logic for sending a heartbeat, fetching pending commands and executing them.
@@ -51,7 +54,8 @@ object CommandProcessor {
                 is_online = true,
                 installed_apps = getInstalledApps(context),
                 fcm_token = null,
-                wifi_ssid = getWifiSsid(context)
+                wifi_ssid = getWifiSsid(context),
+                ip_address = getIpAddress()
             )
         )
 
@@ -324,6 +328,30 @@ object CommandProcessor {
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to read Wi-Fi SSID", e)
+            null
+        }
+    }
+
+    /**
+     * Best-effort local IPv4 address on the current network, preferring Wi-Fi
+     * (wlan) interfaces. Returns null when unavailable. Never throws.
+     */
+    private fun getIpAddress(): String? {
+        return try {
+            var fallback: String? = null
+            for (intf in Collections.list(NetworkInterface.getNetworkInterfaces())) {
+                if (!intf.isUp || intf.isLoopback) continue
+                for (addr in Collections.list(intf.inetAddresses)) {
+                    if (!addr.isLoopbackAddress && addr is Inet4Address) {
+                        val host = addr.hostAddress ?: continue
+                        if (intf.name.startsWith("wlan")) return host
+                        if (fallback == null) fallback = host
+                    }
+                }
+            }
+            fallback
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to read IP address", e)
             null
         }
     }
