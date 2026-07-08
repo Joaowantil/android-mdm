@@ -318,6 +318,8 @@ async def device_heartbeat(
         device.installed_apps = json.dumps(heartbeat.installed_apps)
     if heartbeat.wifi_ssid is not None:
         device.wifi_ssid = heartbeat.wifi_ssid or None
+    if heartbeat.ip_address is not None:
+        device.ip_address = heartbeat.ip_address or None
 
     await db.flush()
 

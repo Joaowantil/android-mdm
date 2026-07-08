@@ -304,6 +304,10 @@ export default function DeviceDetail() {
                   <Typography>{device.wifi_ssid || 'N/A'}</Typography>
                 </Grid>
                 <Grid item xs={6}>
+                  <Typography variant="body2" color="text.secondary">Endereço IP</Typography>
+                  <Typography>{device.ip_address || 'N/A'}</Typography>
+                </Grid>
+                <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">Grupo / Operação</Typography>
                   <FormControl size="small" variant="standard" sx={{ minWidth: 160, mt: 0.5 }}>
                     <Select

@@ -11,6 +11,7 @@ export interface Device {
   is_online: boolean
   last_seen: string | null
   wifi_ssid: string | null
+  ip_address: string | null
   group_id: number | null
   latitude: number | null
   longitude: number | null
