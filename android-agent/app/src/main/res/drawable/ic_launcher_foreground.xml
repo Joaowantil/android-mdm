@@ -4,7 +4,15 @@
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
+    <!-- Shield (managed / secured device) -->
     <path
-        android:fillColor="#FFFFFF"
-        android:pathData="M54,30 L54,30 C67.25,30 78,40.75 78,54 C78,67.25 67.25,78 54,78 C40.75,78 30,67.25 30,54 C30,40.75 40.75,30 54,30 Z M48,44 L48,64 L60,64 L60,58 L54,58 L54,44 Z" />
+        android:fillColor="#26A69A"
+        android:pathData="M54,24 L78,33 L78,51 C78,66.6 67.8,79.2 54,84 C40.2,79.2 30,66.6 30,51 L30,33 Z" />
+    <!-- Check mark -->
+    <path
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="6.6"
+        android:strokeLineCap="round"
+        android:strokeLineJoin="round"
+        android:pathData="M43.5,53.4 L51,60.9 L65.1,45.6" />
 </vector>
