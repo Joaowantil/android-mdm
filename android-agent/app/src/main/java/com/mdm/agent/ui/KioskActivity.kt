@@ -390,11 +390,11 @@ class KioskActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val assetId = prefs.getString("asset_id", null)
         val group = prefs.getString("group_name", null)
-        val label = buildString {
-            append("MDM Agent")
-            if (!assetId.isNullOrBlank()) append(" · $assetId")
-            if (!group.isNullOrBlank()) append(" · $group")
-        }
+        // The logo represents "MDM Agent"; the text carries the device ID and group.
+        val parts = mutableListOf<String>()
+        if (!assetId.isNullOrBlank()) parts.add(assetId)
+        if (!group.isNullOrBlank()) parts.add(group)
+        val label = if (parts.isEmpty()) "MDM Agent" else parts.joinToString(" · ")
         title = label
         findViewById<TextView>(R.id.kioskTitle).text = label
     }
