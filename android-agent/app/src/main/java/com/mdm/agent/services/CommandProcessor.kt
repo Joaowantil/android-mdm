@@ -13,9 +13,13 @@ import android.net.wifi.WifiManager
 import android.os.BatteryManager
 import android.os.Build
 import android.os.Environment
+import android.os.Handler
+import android.os.Looper
 import android.os.StatFs
 import android.os.UserManager
 import android.util.Log
+import android.webkit.WebStorage
+import android.webkit.WebView
 import androidx.core.app.NotificationCompat
 import com.mdm.agent.R
 import com.mdm.agent.receivers.MDMDeviceAdminReceiver
@@ -102,6 +106,7 @@ object CommandProcessor {
                 "lock" -> lock(context, dpm, command.payload)
                 "wipe" -> dpm.wipeData(0)
                 "locate" -> LocationService.requestLocationUpdate(context)
+                "clear_web_cache" -> clearWebCache(context)
                 "set_kiosk" -> setKiosk(context, command.payload)
                 "apply_policy" -> applyPolicy(context, dpm, adminComponent, command.payload)
                 else -> {
@@ -115,6 +120,28 @@ object CommandProcessor {
         }
 
         acknowledge(command.id, success)
+    }
+
+    /**
+     * Clears the embedded browser's cache (HTTP cache, form data, history and DOM/web
+     * storage). Cookies are kept so site logins survive. WebView APIs must run on the main
+     * thread, so the work is posted there.
+     */
+    private fun clearWebCache(context: Context) {
+        val appContext = context.applicationContext
+        Handler(Looper.getMainLooper()).post {
+            try {
+                val webView = WebView(appContext)
+                webView.clearCache(true)
+                webView.clearFormData()
+                webView.clearHistory()
+                webView.destroy()
+                WebStorage.getInstance().deleteAllData()
+                Log.d(TAG, "Web cache cleared")
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to clear web cache", e)
+            }
+        }
     }
 
     private fun lock(context: Context, dpm: DevicePolicyManager, payload: Map<String, Any>?) {
