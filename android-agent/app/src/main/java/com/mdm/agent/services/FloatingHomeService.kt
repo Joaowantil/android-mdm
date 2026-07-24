@@ -20,10 +20,14 @@ import com.mdm.agent.ui.KioskActivity
 import kotlin.math.abs
 
 /**
- * Shows a small draggable "⌂" button that floats on top of every app while the kiosk is
- * armed. Tapping it brings the kiosk launcher back to the front — essential on rugged
- * collectors that have no hardware Home button. Requires the "draw over other apps"
- * permission; if it isn't granted the service just stops (the button simply won't appear).
+ * Shows a small draggable "⌂" button floating on top of every app while the kiosk is armed.
+ * Tapping it brings the kiosk launcher back to the front — essential on rugged collectors
+ * that have no hardware Home button.
+ *
+ * Adding the overlay is retried for a while because right after boot the "draw over other
+ * apps" permission and the window session may not be ready yet; a single attempt would
+ * silently fail, which is why the button used to appear only after leaving and re-entering
+ * the kiosk.
  */
 class FloatingHomeService : Service() {
 
@@ -42,29 +46,27 @@ class FloatingHomeService : Service() {
     }
 
     /**
-     * Adds the overlay button, retrying for a few seconds. Right after boot the window
-     * session may not be ready yet, so a single attempt can silently fail; retrying makes
-     * the button appear without the user having to leave and re-enter the kiosk.
+     * Adds the overlay button, retrying up to [MAX_ATTEMPTS] (once per second). Keeps
+     * retrying even while the overlay permission still reads as "not granted", because that
+     * check is unreliable for a few seconds right after boot.
      */
     private fun tryAddFloatingButton() {
         if (floatingView != null) return
-        if (!canDrawOverlays(this)) {
-            stopSelf()
-            return
-        }
-        val added = addFloatingButton()
-        if (!added && attempts < 10) {
+        val added = if (canDrawOverlays(this)) addFloatingButton() else false
+        if (!added) {
             attempts++
-            handler.postDelayed({ tryAddFloatingButton() }, 1000)
+            if (attempts < MAX_ATTEMPTS) {
+                handler.postDelayed({ tryAddFloatingButton() }, 1000)
+            } else {
+                // Permission likely never granted; nothing more we can do.
+                stopSelf()
+            }
         }
     }
 
     private fun addFloatingButton(): Boolean {
         if (floatingView != null) return true
-        if (!canDrawOverlays(this)) {
-            stopSelf()
-            return false
-        }
+        if (!canDrawOverlays(this)) return false
         val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         windowManager = wm
 
@@ -165,12 +167,23 @@ class FloatingHomeService : Service() {
     }
 
     companion object {
+        private const val MAX_ATTEMPTS = 60
+
         fun canDrawOverlays(context: Context): Boolean =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
 
+        /**
+         * Starts the service. We deliberately do NOT gate on [canDrawOverlays] here: right
+         * after boot that check can transiently return false, and gating would prevent the
+         * service from ever starting. The service retries adding the overlay internally.
+         */
         fun start(context: Context) {
-            if (!canDrawOverlays(context)) return
-            context.startService(Intent(context, FloatingHomeService::class.java))
+            try {
+                context.startService(Intent(context, FloatingHomeService::class.java))
+            } catch (e: Exception) {
+                // startService can be refused if called while in the background (Android O+);
+                // KioskActivity re-invokes this from the foreground, so it's safe to ignore.
+            }
         }
 
         fun stop(context: Context) {
