@@ -2,11 +2,18 @@ package com.mdm.agent.ui
 
 import android.annotation.SuppressLint
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
+import android.view.View
+import android.view.WindowManager
 import android.webkit.CookieManager
 import android.webkit.WebView
 import android.webkit.WebViewClient
 import android.widget.Button
+import android.widget.FrameLayout
+import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.appcompat.app.AppCompatActivity
 import com.mdm.agent.R
@@ -29,14 +36,31 @@ class WebViewActivity : AppCompatActivity() {
 
     private lateinit var webView: WebView
     private lateinit var titleView: TextView
+    private var wifiView: WifiSignalView? = null
+    private val statusHandler = Handler(Looper.getMainLooper())
+    private val statusTick = object : Runnable {
+        override fun run() {
+            updateStatusStrip()
+            statusHandler.postDelayed(this, 10_000)
+        }
+    }
 
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // On Android < 9 the system status bar is empty inside lock task, so hide it and
+        // draw our own strip with clock/wifi/battery instead (same as the kiosk launcher).
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            window.setFlags(
+                WindowManager.LayoutParams.FLAG_FULLSCREEN,
+                WindowManager.LayoutParams.FLAG_FULLSCREEN
+            )
+        }
         setContentView(R.layout.activity_webview)
 
         webView = findViewById(R.id.webView)
         titleView = findViewById(R.id.webTitle)
+        setupStatusStrip()
         webView.settings.apply {
             javaScriptEnabled = true
             domStorageEnabled = true
@@ -65,6 +89,37 @@ class WebViewActivity : AppCompatActivity() {
         loadFromIntent(intent)
     }
 
+    override fun onResume() {
+        super.onResume()
+        statusHandler.removeCallbacks(statusTick)
+        statusHandler.post(statusTick)
+    }
+
+    override fun onPause() {
+        super.onPause()
+        statusHandler.removeCallbacks(statusTick)
+    }
+
+    private fun setupStatusStrip() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) return
+        findViewById<LinearLayout>(R.id.webStatusStrip).visibility = View.VISIBLE
+        val view = WifiSignalView(this)
+        wifiView = view
+        findViewById<FrameLayout>(R.id.webWifiContainer).addView(view)
+    }
+
+    private fun updateStatusStrip() {
+        val strip = findViewById<LinearLayout>(R.id.webStatusStrip) ?: return
+        if (strip.visibility != View.VISIBLE) return
+        val now = java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault())
+            .format(java.util.Date())
+        findViewById<TextView>(R.id.webClock).text = now
+        val (connected, level) = StatusInfo.wifiState(this)
+        wifiView?.connected = connected
+        wifiView?.level = level
+        findViewById<TextView>(R.id.webBattery).text = "${StatusInfo.batteryPercent(this)}%"
+    }
+
     private fun loadFromIntent(intent: Intent) {
         val pageTitle = intent.getStringExtra(EXTRA_TITLE) ?: getString(R.string.app_name)
         title = pageTitle
@@ -91,6 +146,7 @@ class WebViewActivity : AppCompatActivity() {
     }
 
     override fun onDestroy() {
+        statusHandler.removeCallbacks(statusTick)
         if (::webView.isInitialized) {
             webView.destroy()
         }

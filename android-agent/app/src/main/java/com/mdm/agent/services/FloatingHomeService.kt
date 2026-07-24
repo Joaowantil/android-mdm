@@ -7,7 +7,9 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.os.Build
+import android.os.Handler
 import android.os.IBinder
+import android.os.Looper
 import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
@@ -27,19 +29,41 @@ class FloatingHomeService : Service() {
 
     private var windowManager: WindowManager? = null
     private var floatingView: View? = null
+    private val handler = Handler(Looper.getMainLooper())
+    private var attempts = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        addFloatingButton()
+        attempts = 0
+        handler.removeCallbacksAndMessages(null)
+        tryAddFloatingButton()
         return START_STICKY
     }
 
-    private fun addFloatingButton() {
+    /**
+     * Adds the overlay button, retrying for a few seconds. Right after boot the window
+     * session may not be ready yet, so a single attempt can silently fail; retrying makes
+     * the button appear without the user having to leave and re-enter the kiosk.
+     */
+    private fun tryAddFloatingButton() {
         if (floatingView != null) return
         if (!canDrawOverlays(this)) {
             stopSelf()
             return
+        }
+        val added = addFloatingButton()
+        if (!added && attempts < 10) {
+            attempts++
+            handler.postDelayed({ tryAddFloatingButton() }, 1000)
+        }
+    }
+
+    private fun addFloatingButton(): Boolean {
+        if (floatingView != null) return true
+        if (!canDrawOverlays(this)) {
+            stopSelf()
+            return false
         }
         val wm = getSystemService(Context.WINDOW_SERVICE) as WindowManager
         windowManager = wm
@@ -112,11 +136,12 @@ class FloatingHomeService : Service() {
             }
         })
 
-        try {
+        return try {
             wm.addView(button, params)
             floatingView = button
+            true
         } catch (e: Exception) {
-            stopSelf()
+            false
         }
     }
 
@@ -128,6 +153,7 @@ class FloatingHomeService : Service() {
         }
 
     override fun onDestroy() {
+        handler.removeCallbacksAndMessages(null)
         floatingView?.let { v ->
             try {
                 windowManager?.removeView(v)

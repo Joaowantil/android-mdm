@@ -18,9 +18,6 @@ import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
-import android.net.ConnectivityManager
-import android.net.wifi.WifiManager
-import android.os.BatteryManager
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
@@ -193,37 +190,11 @@ class KioskActivity : AppCompatActivity() {
             .format(java.util.Date())
         findViewById<TextView>(R.id.kioskClock).text = now
 
-        val (connected, level) = wifiState()
+        val (connected, level) = StatusInfo.wifiState(this)
         wifiView?.connected = connected
         wifiView?.level = level
 
-        findViewById<TextView>(R.id.kioskBattery).text = "${batteryPercent()}%"
-    }
-
-    private fun wifiState(): Pair<Boolean, Int> {
-        return try {
-            val cm = getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            @Suppress("DEPRECATION")
-            val activeWifi = cm.activeNetworkInfo?.type == ConnectivityManager.TYPE_WIFI &&
-                cm.activeNetworkInfo?.isConnected == true
-            val wm = applicationContext.getSystemService(Context.WIFI_SERVICE) as WifiManager
-            @Suppress("DEPRECATION")
-            val rssi = wm.connectionInfo?.rssi ?: -127
-            @Suppress("DEPRECATION")
-            val bars = WifiManager.calculateSignalLevel(rssi, 4) // 0..3
-            (activeWifi && wm.isWifiEnabled) to bars
-        } catch (e: Exception) {
-            false to 0
-        }
-    }
-
-    private fun batteryPercent(): Int {
-        return try {
-            val bm = getSystemService(Context.BATTERY_SERVICE) as BatteryManager
-            bm.getIntProperty(BatteryManager.BATTERY_PROPERTY_CAPACITY)
-        } catch (e: Exception) {
-            0
-        }
+        findViewById<TextView>(R.id.kioskBattery).text = "${StatusInfo.batteryPercent(this)}%"
     }
 
     private fun resolveApps(): List<String> =
