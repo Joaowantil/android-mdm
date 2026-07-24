@@ -83,6 +83,10 @@ class KioskActivity : AppCompatActivity() {
         override fun run() {
             updateStatusStrip()
             showAssetId()
+            // Self-heal the floating home button: if it failed to attach at boot (e.g. the
+            // overlay permission wasn't ready yet or the keyguard suppressed it), re-ensure
+            // it here. Starting the service is idempotent when the button already exists.
+            if (isKioskArmed()) FloatingHomeService.start(this@KioskActivity)
             statusHandler.postDelayed(this, 10_000)
         }
     }
@@ -161,6 +165,17 @@ class KioskActivity : AppCompatActivity() {
         super.onPause()
         statusHandler.removeCallbacks(statusTick)
     }
+
+    override fun onWindowFocusChanged(hasFocus: Boolean) {
+        super.onWindowFocusChanged(hasFocus)
+        // The window gaining focus is the reliable moment the kiosk is actually visible
+        // (e.g. right after boot once the keyguard is dismissed). Ensure the overlay button
+        // is attached at that point rather than relying only on boot-time timing.
+        if (hasFocus && isKioskArmed()) FloatingHomeService.start(this)
+    }
+
+    private fun isKioskArmed(): Boolean =
+        getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("kiosk_enabled", false)
 
     /** Gray, more-transparent kiosk header and exit button. */
     private fun styleBars() {
