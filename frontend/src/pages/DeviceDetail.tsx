@@ -29,6 +29,7 @@ import {
   DeleteForever,
   LocationOn,
   ArrowBack,
+  CleaningServices,
 } from '@mui/icons-material'
 import api from '../services/api'
 import { Device, Group } from '../types'
@@ -172,6 +173,18 @@ export default function DeviceDetail() {
       loadDevice()
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao executar wipe' })
+    }
+  }
+
+  const clearWebCache = async () => {
+    try {
+      await api.post(`/devices/${id}/command`, { command_type: 'clear_web_cache' })
+      setAlert({
+        type: 'success',
+        message: 'Comando enviado. O cache do navegador será limpo no próximo contato do dispositivo.',
+      })
+    } catch (err) {
+      setAlert({ type: 'error', message: 'Falha ao limpar o cache' })
     }
   }
 
@@ -453,6 +466,14 @@ export default function DeviceDetail() {
                   fullWidth
                 >
                   {locating ? 'Localizando...' : 'Localizar Dispositivo'}
+                </Button>
+                <Button
+                  variant="outlined"
+                  startIcon={<CleaningServices />}
+                  onClick={clearWebCache}
+                  fullWidth
+                >
+                  Limpar Cache do Navegador
                 </Button>
                 <Divider />
                 <Button
