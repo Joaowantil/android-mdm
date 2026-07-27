@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
+import android.os.PowerManager
 import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
@@ -28,9 +29,10 @@ import kotlin.math.abs
  *
  * Adding the overlay is retried for a while because right after boot the "draw over other
  * apps" permission and the window session may not be ready yet. A watchdog then keeps
- * checking that the window is still attached, because the system can drop it (notably around
- * boot) — without that check a stale view reference made every retry a no-op, which is why
- * the button used to come back only after leaving and re-entering the kiosk.
+ * verifying that the window is really being drawn, not merely that `addView` succeeded: on
+ * some collectors the boot-time window is added but never shown, and only recreating it
+ * brings the button back — which is why leaving and re-entering the kiosk used to be the
+ * only workaround.
  */
 class FloatingHomeService : Service() {
 
@@ -39,39 +41,56 @@ class FloatingHomeService : Service() {
     private val handler = Handler(Looper.getMainLooper())
     private var attempts = 0
     private var addedAt = 0L
+    private var recreates = 0
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        if (isButtonAttached()) return START_STICKY
+        if (isButtonVisible()) return START_STICKY
         attempts = 0
         handler.removeCallbacksAndMessages(null)
         Log.i(
             TAG,
             "onStartCommand: canDrawOverlays=${canDrawOverlays(this)} " +
-                "staleView=${floatingView != null}"
+                "existingView=${floatingView != null}"
         )
+        dropView("start requested while the button is not on screen")
         tryAddFloatingButton()
+        scheduleWatchdog()
         return START_STICKY
     }
 
-    /**
-     * True only when the overlay is really on screen. Checking [floatingView] for null is not
-     * enough: the window manager can drop the window (it happens around boot on some devices)
-     * while our reference stays non-null, which would make every retry a silent no-op.
-     */
+    /** Whether a window for the button currently exists, regardless of it being drawn. */
     private fun isButtonAttached(): Boolean {
         val v = floatingView ?: return false
         // addView() attaches on the next traversal, so treat a just-added view as attached.
-        return v.isAttachedToWindow ||
-            SystemClock.elapsedRealtime() - addedAt < ATTACH_GRACE_MS
+        return v.isAttachedToWindow || withinGrace()
     }
 
-    /** Drops a reference to a window the system already took away, so it can be re-added. */
-    private fun discardStaleView() {
+    /**
+     * Whether the button is actually on screen. `addView` succeeding is not enough: at boot the
+     * collector adds the window but never draws it, so the view stays attached while being
+     * invisible. Only this check catches that, and recreating the window is what fixes it —
+     * which is exactly why leaving and re-entering the kiosk used to be the only workaround.
+     */
+    private fun isButtonVisible(): Boolean {
+        val v = floatingView ?: return false
+        if (withinGrace()) return true
+        return v.isAttachedToWindow && v.windowVisibility == View.VISIBLE && v.isShown
+    }
+
+    private fun withinGrace(): Boolean =
+        SystemClock.elapsedRealtime() - addedAt < ATTACH_GRACE_MS
+
+    /** Tears down the current window so a fresh one can be created in its place. */
+    private fun dropView(reason: String) {
         val v = floatingView ?: return
-        if (isButtonAttached()) return
-        Log.w(TAG, "overlay window was detached by the system; re-adding")
+        Log.w(
+            TAG,
+            "$reason (attached=${v.isAttachedToWindow} " +
+                "windowVisibility=${v.windowVisibility} isShown=${v.isShown}); " +
+                "recreating the overlay"
+        )
         try {
             windowManager?.removeView(v)
         } catch (_: Exception) {
@@ -79,19 +98,35 @@ class FloatingHomeService : Service() {
         floatingView = null
     }
 
+    private fun isScreenOn(): Boolean =
+        (getSystemService(Context.POWER_SERVICE) as PowerManager).isInteractive
+
     /**
-     * Re-checks periodically that the button is still on screen for as long as the service
-     * lives, so it comes back on its own if anything removes it.
+     * Re-checks periodically that the button is really on screen and recreates it otherwise,
+     * so it recovers on its own without leaving the kiosk.
      */
-    private val watchdog = object : Runnable {
-        override fun run() {
-            if (!isButtonAttached()) {
-                discardStaleView()
+    private val watchdog = Runnable { runWatchdog() }
+
+    private fun runWatchdog() {
+        // While the screen is off the window is legitimately not drawn; recreating it then
+        // would churn every interval for no reason.
+        if (isScreenOn()) {
+            if (isButtonVisible()) {
+                recreates = 0
+            } else if (recreates < MAX_RECREATES) {
+                recreates++
                 attempts = 0
+                handler.removeCallbacksAndMessages(null)
+                dropView("overlay window is not being drawn")
                 tryAddFloatingButton()
             }
-            handler.postDelayed(this, WATCHDOG_INTERVAL_MS)
         }
+        scheduleWatchdog()
+    }
+
+    private fun scheduleWatchdog() {
+        handler.removeCallbacks(watchdog)
+        handler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS)
     }
 
     /**
@@ -100,7 +135,6 @@ class FloatingHomeService : Service() {
      * check is unreliable for a few seconds right after boot.
      */
     private fun tryAddFloatingButton() {
-        discardStaleView()
         if (isButtonAttached()) return
         val added = if (canDrawOverlays(this)) addFloatingButton() else false
         if (!added) {
@@ -198,8 +232,7 @@ class FloatingHomeService : Service() {
             floatingView = button
             addedAt = SystemClock.elapsedRealtime()
             Log.i(TAG, "floating home button attached after $attempts retries")
-            handler.removeCallbacks(watchdog)
-            handler.postDelayed(watchdog, WATCHDOG_INTERVAL_MS)
+            scheduleWatchdog()
             true
         } catch (e: Exception) {
             Log.w(TAG, "addView failed (attempt $attempts): ${e.javaClass.simpleName}: ${e.message}")
@@ -230,7 +263,8 @@ class FloatingHomeService : Service() {
         private const val TAG = "FloatingHome"
         private const val MAX_ATTEMPTS = 60
         private const val WATCHDOG_INTERVAL_MS = 5_000L
-        private const val ATTACH_GRACE_MS = 2_000L
+        private const val ATTACH_GRACE_MS = 3_000L
+        private const val MAX_RECREATES = 20
 
         fun canDrawOverlays(context: Context): Boolean =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
