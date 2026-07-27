@@ -11,6 +11,7 @@ import android.os.Handler
 import android.os.IBinder
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -39,8 +40,10 @@ class FloatingHomeService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (floatingView != null) return START_STICKY
         attempts = 0
         handler.removeCallbacksAndMessages(null)
+        Log.i(TAG, "onStartCommand: canDrawOverlays=${canDrawOverlays(this)}")
         tryAddFloatingButton()
         return START_STICKY
     }
@@ -58,7 +61,12 @@ class FloatingHomeService : Service() {
             if (attempts < MAX_ATTEMPTS) {
                 handler.postDelayed({ tryAddFloatingButton() }, 1000)
             } else {
-                // Permission likely never granted; nothing more we can do.
+                Log.w(
+                    TAG,
+                    "giving up after $attempts attempts; canDrawOverlays=" +
+                        "${canDrawOverlays(this)}. Grant \"draw over other apps\" to " +
+                        "com.mdm.agent so the floating home button can be shown."
+                )
                 stopSelf()
             }
         }
@@ -141,8 +149,10 @@ class FloatingHomeService : Service() {
         return try {
             wm.addView(button, params)
             floatingView = button
+            Log.i(TAG, "floating home button attached after $attempts retries")
             true
         } catch (e: Exception) {
+            Log.w(TAG, "addView failed (attempt $attempts): ${e.javaClass.simpleName}: ${e.message}")
             false
         }
     }
@@ -167,6 +177,7 @@ class FloatingHomeService : Service() {
     }
 
     companion object {
+        private const val TAG = "FloatingHome"
         private const val MAX_ATTEMPTS = 60
 
         fun canDrawOverlays(context: Context): Boolean =
@@ -183,6 +194,7 @@ class FloatingHomeService : Service() {
             } catch (e: Exception) {
                 // startService can be refused if called while in the background (Android O+);
                 // KioskActivity re-invokes this from the foreground, so it's safe to ignore.
+                Log.w(TAG, "startService refused: ${e.javaClass.simpleName}")
             }
         }
 
