@@ -3,6 +3,7 @@ package com.mdm.agent.services
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
@@ -29,19 +30,21 @@ import kotlin.math.abs
  *
  * Adding the overlay is retried for a while because right after boot the "draw over other
  * apps" permission and the window session may not be ready yet. A watchdog then keeps
- * verifying that the window is really being drawn, not merely that `addView` succeeded: on
- * some collectors the boot-time window is added but never shown, and only recreating it
- * brings the button back — which is why leaving and re-entering the kiosk used to be the
- * only workaround.
+ * verifying that the button was really painted, not merely that `addView` succeeded: on some
+ * collectors the boot-time window is registered without ever getting a surface, so it is
+ * never rendered while still reporting itself as attached and shown. Recreating the window
+ * is what brings the button back — the same thing that leaving and re-entering the kiosk
+ * used to do by hand.
  */
 class FloatingHomeService : Service() {
 
     private var windowManager: WindowManager? = null
-    private var floatingView: View? = null
+    private var floatingView: HomeButton? = null
     private val handler = Handler(Looper.getMainLooper())
     private var attempts = 0
     private var addedAt = 0L
     private var recreates = 0
+    private var lastRecreateAt = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -68,15 +71,16 @@ class FloatingHomeService : Service() {
     }
 
     /**
-     * Whether the button is actually on screen. `addView` succeeding is not enough: at boot the
-     * collector adds the window but never draws it, so the view stays attached while being
-     * invisible. Only this check catches that, and recreating the window is what fixes it —
-     * which is exactly why leaving and re-entering the kiosk used to be the only workaround.
+     * Whether the button really made it to the screen. Neither `addView` succeeding nor the
+     * view's own visibility flags prove that: a window can be registered and report
+     * `isAttachedToWindow`/`isShown` while the system never gives it a surface, in which case
+     * it is never painted. Having been painted at least once is the only reliable evidence.
      */
     private fun isButtonVisible(): Boolean {
         val v = floatingView ?: return false
         if (withinGrace()) return true
-        return v.isAttachedToWindow && v.windowVisibility == View.VISIBLE && v.isShown
+        return v.isAttachedToWindow && v.windowVisibility == View.VISIBLE && v.isShown &&
+            v.wasDrawn
     }
 
     private fun withinGrace(): Boolean =
@@ -88,8 +92,8 @@ class FloatingHomeService : Service() {
         Log.w(
             TAG,
             "$reason (attached=${v.isAttachedToWindow} " +
-                "windowVisibility=${v.windowVisibility} isShown=${v.isShown}); " +
-                "recreating the overlay"
+                "windowVisibility=${v.windowVisibility} isShown=${v.isShown} " +
+                "drawn=${v.wasDrawn}); recreating the overlay"
         )
         try {
             windowManager?.removeView(v)
@@ -113,8 +117,9 @@ class FloatingHomeService : Service() {
         if (isScreenOn()) {
             if (isButtonVisible()) {
                 recreates = 0
-            } else if (recreates < MAX_RECREATES) {
+            } else if (dueForRecreate()) {
                 recreates++
+                lastRecreateAt = SystemClock.elapsedRealtime()
                 attempts = 0
                 handler.removeCallbacksAndMessages(null)
                 dropView("overlay window is not being drawn")
@@ -122,6 +127,13 @@ class FloatingHomeService : Service() {
             }
         }
         scheduleWatchdog()
+    }
+
+    /** Retries quickly at first, then slows down so a blocked overlay does not churn forever. */
+    private fun dueForRecreate(): Boolean {
+        val interval =
+            if (recreates < FAST_RECREATES) WATCHDOG_INTERVAL_MS else SLOW_RECREATE_INTERVAL_MS
+        return SystemClock.elapsedRealtime() - lastRecreateAt >= interval
     }
 
     private fun scheduleWatchdog() {
@@ -161,7 +173,7 @@ class FloatingHomeService : Service() {
 
         val density = resources.displayMetrics.density
         val pad = (12 * density).toInt()
-        val button = TextView(this).apply {
+        val button = HomeButton(this).apply {
             text = "⌂"
             textSize = 26f
             setTextColor(Color.WHITE)
@@ -264,7 +276,8 @@ class FloatingHomeService : Service() {
         private const val MAX_ATTEMPTS = 60
         private const val WATCHDOG_INTERVAL_MS = 5_000L
         private const val ATTACH_GRACE_MS = 3_000L
-        private const val MAX_RECREATES = 20
+        private const val FAST_RECREATES = 12
+        private const val SLOW_RECREATE_INTERVAL_MS = 30_000L
 
         fun canDrawOverlays(context: Context): Boolean =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
@@ -287,5 +300,20 @@ class FloatingHomeService : Service() {
         fun stop(context: Context) {
             context.stopService(Intent(context, FloatingHomeService::class.java))
         }
+    }
+}
+
+/**
+ * Records whether the button was ever painted. A window without a surface is never drawn, so
+ * this is what distinguishes "on screen" from "registered but invisible".
+ */
+private class HomeButton(context: Context) : TextView(context) {
+
+    var wasDrawn = false
+        private set
+
+    override fun onDraw(canvas: Canvas) {
+        super.onDraw(canvas)
+        wasDrawn = true
     }
 }
