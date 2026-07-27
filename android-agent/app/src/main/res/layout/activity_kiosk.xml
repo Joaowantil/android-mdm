@@ -77,6 +77,22 @@
 
     </LinearLayout>
 
+    <!-- Shown only when the "draw over other apps" permission is missing, which is what
+         silently prevents the floating home button from appearing. -->
+    <TextView
+        android:id="@+id/kioskOverlayWarning"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="#CCB71C1C"
+        android:paddingStart="20dp"
+        android:paddingEnd="20dp"
+        android:paddingTop="10dp"
+        android:paddingBottom="10dp"
+        android:textColor="#FFFFFF"
+        android:textSize="13sp"
+        android:text="Botão ⌂ indisponível: permissão de sobreposição não concedida. Toque para conceder."
+        android:visibility="gone" />
+
     <ScrollView
         android:layout_width="match_parent"
         android:layout_height="0dp"

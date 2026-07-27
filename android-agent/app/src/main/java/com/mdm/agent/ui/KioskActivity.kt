@@ -18,10 +18,12 @@ import android.graphics.Typeface
 import android.graphics.drawable.BitmapDrawable
 import android.graphics.drawable.ColorDrawable
 import android.graphics.drawable.Drawable
+import android.net.Uri
 import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.provider.Settings
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.text.InputType
@@ -87,6 +89,7 @@ class KioskActivity : AppCompatActivity() {
             // overlay permission wasn't ready yet or the keyguard suppressed it), re-ensure
             // it here. Starting the service is idempotent when the button already exists.
             if (isKioskArmed()) FloatingHomeService.start(this@KioskActivity)
+            updateOverlayWarning()
             statusHandler.postDelayed(this, 10_000)
         }
     }
@@ -140,6 +143,8 @@ class KioskActivity : AppCompatActivity() {
         showAssetId()
         updateStatusStrip()
         findViewById<Button>(R.id.kioskExitButton).setOnClickListener { promptPinToExit() }
+        findViewById<TextView>(R.id.kioskOverlayWarning)
+            .setOnClickListener { requestOverlayPermission() }
         startLockTaskSafely()
         // Floating "return to kiosk" button on top of launched apps (needs overlay permission).
         FloatingHomeService.start(this)
@@ -172,6 +177,39 @@ class KioskActivity : AppCompatActivity() {
         // (e.g. right after boot once the keyguard is dismissed). Ensure the overlay button
         // is attached at that point rather than relying only on boot-time timing.
         if (hasFocus && isKioskArmed()) FloatingHomeService.start(this)
+        if (hasFocus) updateOverlayWarning()
+    }
+
+    /**
+     * The floating home button silently does nothing without the "draw over other apps"
+     * permission, which is reset whenever the APK is reinstalled. Surface that instead of
+     * leaving the operator without a way back to the kiosk.
+     */
+    private fun updateOverlayWarning() {
+        val warning = findViewById<TextView>(R.id.kioskOverlayWarning) ?: return
+        warning.visibility =
+            if (FloatingHomeService.canDrawOverlays(this)) View.GONE else View.VISIBLE
+    }
+
+    private fun requestOverlayPermission() {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return
+        try {
+            // Lock task blocks non-allowlisted activities, so drop out of it for the grant
+            // flow; onResume re-asserts it when the kiosk comes back to the front.
+            stopLockTaskSafely()
+            startActivity(
+                Intent(
+                    Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                    Uri.parse("package:$packageName")
+                ).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+        } catch (e: Exception) {
+            Toast.makeText(
+                this,
+                "Não foi possível abrir a tela de permissão neste aparelho",
+                Toast.LENGTH_LONG
+            ).show()
+        }
     }
 
     private fun isKioskArmed(): Boolean =
