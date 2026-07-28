@@ -24,6 +24,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
 import android.provider.Settings
+import android.util.Log
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.text.InputType
@@ -44,6 +45,7 @@ import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
 import com.mdm.agent.R
 import com.mdm.agent.services.FloatingHomeService
+import com.mdm.agent.services.HomeAccessibilityService
 import com.mdm.agent.services.KioskPolicy
 import org.json.JSONArray
 
@@ -179,8 +181,10 @@ class KioskActivity : AppCompatActivity() {
      */
     private fun updateOverlayWarning() {
         val warning = findViewById<TextView>(R.id.kioskOverlayWarning) ?: return
-        warning.visibility =
-            if (FloatingHomeService.canDrawOverlays(this)) View.GONE else View.VISIBLE
+        // The accessibility overlay draws the button without that permission at all.
+        val ok = HomeAccessibilityService.isEnabled(this) ||
+            FloatingHomeService.canDrawOverlays(this)
+        warning.visibility = if (ok) View.GONE else View.VISIBLE
     }
 
     private fun requestOverlayPermission() {
@@ -411,7 +415,15 @@ class KioskActivity : AppCompatActivity() {
      * worked, at the only moment the button is actually needed.
      */
     private fun ensureFloatingButton() {
-        if (isKioskArmed()) FloatingHomeService.restart(this)
+        if (!isKioskArmed()) return
+        // Logging the path makes it obvious from `logcat -s FloatingHome` which mechanism is
+        // in use — the accessibility service gets switched off by the system if the app is
+        // force-stopped, and the fallback then quietly takes over again.
+        if (HomeAccessibilityService.isEnabled(this)) {
+            Log.i("FloatingHome", "home button provided by the accessibility service")
+        } else {
+            FloatingHomeService.restart(this)
+        }
     }
 
     private fun showAssetId() {

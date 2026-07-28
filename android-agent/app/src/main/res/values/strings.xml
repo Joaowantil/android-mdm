@@ -6,4 +6,6 @@
     <string name="enroll_button">Registrar Dispositivo</string>
     <string name="status_enrolled">Dispositivo registrado com sucesso</string>
     <string name="status_active">MDM Agent ativo</string>
+    <string name="accessibility_home_label">MDM Agent — botão Início</string>
+    <string name="accessibility_home_description">Mostra o botão flutuante de início sobre os aplicativos, para voltar ao kiosk sem depender de botões físicos.</string>
 </resources>
