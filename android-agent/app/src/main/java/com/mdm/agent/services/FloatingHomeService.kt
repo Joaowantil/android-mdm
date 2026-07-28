@@ -29,12 +29,12 @@ import kotlin.math.abs
  * that have no hardware Home button.
  *
  * Adding the overlay is retried for a while because right after boot the "draw over other
- * apps" permission and the window session may not be ready yet. A watchdog then keeps
- * verifying that the button was really painted, not merely that `addView` succeeded: on some
- * collectors the boot-time window is registered without ever getting a surface, so it is
- * never rendered while still reporting itself as attached and shown. Recreating the window
- * is what brings the button back — the same thing that leaving and re-entering the kiosk
- * used to do by hand.
+ * apps" permission and the window session may not be ready yet. A watchdog then probes that
+ * the button is *still being painted*, because neither `addView` succeeding nor the view's
+ * visibility flags prove it: on some collectors the boot-time window ends up without a
+ * surface (visible in `dumpsys window windows` as a window with no `mSurface`) while still
+ * reporting `isAttachedToWindow`/`isShown`. Recreating the window is what brings the button
+ * back — the same thing leaving and re-entering the kiosk used to do by hand.
  */
 class FloatingHomeService : Service() {
 
@@ -45,6 +45,7 @@ class FloatingHomeService : Service() {
     private var addedAt = 0L
     private var recreates = 0
     private var lastRecreateAt = 0L
+    private var ticks = 0L
 
     override fun onBind(intent: Intent?): IBinder? = null
 
@@ -54,8 +55,7 @@ class FloatingHomeService : Service() {
         handler.removeCallbacksAndMessages(null)
         Log.i(
             TAG,
-            "onStartCommand: canDrawOverlays=${canDrawOverlays(this)} " +
-                "existingView=${floatingView != null}"
+            "onStartCommand: canDrawOverlays=${canDrawOverlays(this)} view=${describeView()}"
         )
         dropView("start requested while the button is not on screen")
         tryAddFloatingButton()
@@ -71,16 +71,23 @@ class FloatingHomeService : Service() {
     }
 
     /**
-     * Whether the button really made it to the screen. Neither `addView` succeeding nor the
-     * view's own visibility flags prove that: a window can be registered and report
-     * `isAttachedToWindow`/`isShown` while the system never gives it a surface, in which case
-     * it is never painted. Having been painted at least once is the only reliable evidence.
+     * Whether the button is on screen *right now*. A window whose surface the system dropped
+     * keeps reporting itself as attached, visible and shown, and having been painted once at
+     * boot says nothing about the present. The watchdog therefore asks the view to repaint on
+     * every tick and this checks that the repaint actually happened.
      */
     private fun isButtonVisible(): Boolean {
         val v = floatingView ?: return false
         if (withinGrace()) return true
-        return v.isAttachedToWindow && v.windowVisibility == View.VISIBLE && v.isShown &&
-            v.wasDrawn
+        if (!v.isAttachedToWindow || v.windowVisibility != View.VISIBLE || !v.isShown) return false
+        return SystemClock.elapsedRealtime() - v.lastDrawAt <= DRAW_TIMEOUT_MS
+    }
+
+    private fun describeView(): String {
+        val v = floatingView ?: return "none"
+        return "attached=${v.isAttachedToWindow} windowVisibility=${v.windowVisibility} " +
+            "isShown=${v.isShown} size=${v.width}x${v.height} " +
+            "lastDrawAgeMs=${if (v.lastDrawAt == 0L) -1 else SystemClock.elapsedRealtime() - v.lastDrawAt}"
     }
 
     private fun withinGrace(): Boolean =
@@ -89,12 +96,7 @@ class FloatingHomeService : Service() {
     /** Tears down the current window so a fresh one can be created in its place. */
     private fun dropView(reason: String) {
         val v = floatingView ?: return
-        Log.w(
-            TAG,
-            "$reason (attached=${v.isAttachedToWindow} " +
-                "windowVisibility=${v.windowVisibility} isShown=${v.isShown} " +
-                "drawn=${v.wasDrawn}); recreating the overlay"
-        )
+        Log.w(TAG, "$reason (${describeView()}); recreating the overlay")
         try {
             windowManager?.removeView(v)
         } catch (_: Exception) {
@@ -125,6 +127,12 @@ class FloatingHomeService : Service() {
                 dropView("overlay window is not being drawn")
                 tryAddFloatingButton()
             }
+            // Ask for a repaint so the next tick can tell a live window from a dead one.
+            floatingView?.invalidate()
+        }
+        ticks++
+        if (ticks % STATUS_LOG_EVERY_TICKS == 0L) {
+            Log.i(TAG, "status: view=${describeView()} recreates=$recreates")
         }
         scheduleWatchdog()
     }
@@ -172,14 +180,13 @@ class FloatingHomeService : Service() {
         windowManager = wm
 
         val density = resources.displayMetrics.density
-        val pad = (12 * density).toInt()
+        val size = (56 * density).toInt()
         val button = HomeButton(this).apply {
             text = "⌂"
             textSize = 26f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
             gravity = Gravity.CENTER
-            setPadding(pad, pad, pad, pad)
             background = roundBackground()
         }
 
@@ -190,9 +197,11 @@ class FloatingHomeService : Service() {
             WindowManager.LayoutParams.TYPE_PHONE
         }
 
+        // A fixed window size keeps the system from ever ending up with a zero-sized window,
+        // which would get no surface and therefore never be drawn.
         val params = WindowManager.LayoutParams(
-            WindowManager.LayoutParams.WRAP_CONTENT,
-            WindowManager.LayoutParams.WRAP_CONTENT,
+            size,
+            size,
             type,
             WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
             PixelFormat.TRANSLUCENT
@@ -278,6 +287,8 @@ class FloatingHomeService : Service() {
         private const val ATTACH_GRACE_MS = 3_000L
         private const val FAST_RECREATES = 12
         private const val SLOW_RECREATE_INTERVAL_MS = 30_000L
+        private const val DRAW_TIMEOUT_MS = 12_000L
+        private const val STATUS_LOG_EVERY_TICKS = 12L
 
         fun canDrawOverlays(context: Context): Boolean =
             Build.VERSION.SDK_INT < Build.VERSION_CODES.M || Settings.canDrawOverlays(context)
@@ -304,16 +315,17 @@ class FloatingHomeService : Service() {
 }
 
 /**
- * Records whether the button was ever painted. A window without a surface is never drawn, so
- * this is what distinguishes "on screen" from "registered but invisible".
+ * Records when the button was last painted. A window without a surface is never drawn, so a
+ * stale timestamp after an [View.invalidate] is what distinguishes "on screen" from
+ * "registered but invisible".
  */
 private class HomeButton(context: Context) : TextView(context) {
 
-    var wasDrawn = false
+    var lastDrawAt = 0L
         private set
 
     override fun onDraw(canvas: Canvas) {
         super.onDraw(canvas)
-        wasDrawn = true
+        lastDrawAt = SystemClock.elapsedRealtime()
     }
 }

@@ -396,6 +396,7 @@ class KioskActivity : AppCompatActivity() {
     private fun launchApp(pkg: String) {
         val launch = packageManager.getLaunchIntentForPackage(pkg)
         if (launch != null) {
+            ensureFloatingButton()
             startActivity(launch)
         } else {
             Toast.makeText(this, "App não encontrado: $pkg", Toast.LENGTH_SHORT).show()
@@ -403,11 +404,21 @@ class KioskActivity : AppCompatActivity() {
     }
 
     private fun launchWebLink(label: String, url: String) {
+        ensureFloatingButton()
         startActivity(
             Intent(this, WebViewActivity::class.java)
                 .putExtra(WebViewActivity.EXTRA_URL, url)
                 .putExtra(WebViewActivity.EXTRA_TITLE, label)
         )
+    }
+
+    /**
+     * Re-ensures the floating button right before leaving the kiosk for an app — the moment it
+     * actually matters, and while we are still in the foreground so the service can be started.
+     * It is a no-op when the button is already on screen.
+     */
+    private fun ensureFloatingButton() {
+        if (isKioskArmed()) FloatingHomeService.start(this)
     }
 
     private fun showAssetId() {
