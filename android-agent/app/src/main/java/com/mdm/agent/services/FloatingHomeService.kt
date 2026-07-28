@@ -28,8 +28,13 @@ import kotlin.math.abs
  * Tapping it brings the kiosk launcher back to the front — essential on rugged collectors
  * that have no hardware Home button.
  *
- * Adding the overlay is retried for a while because right after boot the "draw over other
- * apps" permission and the window session may not be ready yet. A watchdog then probes that
+ * The service is started when the kiosk launches an app and stopped when the kiosk comes back
+ * to the front, so the window is always built at the moment the button is needed. Creating it
+ * at boot instead proved unreliable on rugged collectors, where the window never received a
+ * surface.
+ *
+ * Adding the overlay is retried for a while because the "draw over other apps" permission and
+ * the window session may not be ready immediately. A watchdog then probes that
  * the button is *still being painted*, because neither `addView` succeeding nor the view's
  * visibility flags prove it: on some collectors the boot-time window ends up without a
  * surface (visible in `dumpsys window windows` as a window with no `mSurface`) while still
@@ -310,6 +315,16 @@ class FloatingHomeService : Service() {
 
         fun stop(context: Context) {
             context.stopService(Intent(context, FloatingHomeService::class.java))
+        }
+
+        /**
+         * Tears the service down and starts it again so the overlay window is built from
+         * scratch. Reusing a window created earlier (notably at boot) is unreliable on some
+         * collectors, where it never gets a surface and is therefore never painted.
+         */
+        fun restart(context: Context) {
+            stop(context)
+            start(context)
         }
     }
 }

@@ -85,10 +85,6 @@ class KioskActivity : AppCompatActivity() {
         override fun run() {
             updateStatusStrip()
             showAssetId()
-            // Self-heal the floating home button: if it failed to attach at boot (e.g. the
-            // overlay permission wasn't ready yet or the keyguard suppressed it), re-ensure
-            // it here. Starting the service is idempotent when the button already exists.
-            if (isKioskArmed()) FloatingHomeService.start(this@KioskActivity)
             updateOverlayWarning()
             statusHandler.postDelayed(this, 10_000)
         }
@@ -146,8 +142,6 @@ class KioskActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.kioskOverlayWarning)
             .setOnClickListener { requestOverlayPermission() }
         startLockTaskSafely()
-        // Floating "return to kiosk" button on top of launched apps (needs overlay permission).
-        FloatingHomeService.start(this)
     }
 
     override fun onResume() {
@@ -161,7 +155,9 @@ class KioskActivity : AppCompatActivity() {
         }
         // Re-assert lock task in case the user returned here from an allowlisted app.
         startLockTaskSafely()
-        FloatingHomeService.start(this)
+        // The kiosk itself is the way home, so the overlay is only needed over other apps.
+        // Tearing it down here also guarantees the next app launch builds a brand new window.
+        FloatingHomeService.stop(this)
         statusHandler.removeCallbacks(statusTick)
         statusHandler.post(statusTick)
     }
@@ -173,10 +169,6 @@ class KioskActivity : AppCompatActivity() {
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {
         super.onWindowFocusChanged(hasFocus)
-        // The window gaining focus is the reliable moment the kiosk is actually visible
-        // (e.g. right after boot once the keyguard is dismissed). Ensure the overlay button
-        // is attached at that point rather than relying only on boot-time timing.
-        if (hasFocus && isKioskArmed()) FloatingHomeService.start(this)
         if (hasFocus) updateOverlayWarning()
     }
 
@@ -404,7 +396,7 @@ class KioskActivity : AppCompatActivity() {
     }
 
     private fun launchWebLink(label: String, url: String) {
-        ensureFloatingButton()
+        // Web links open in our own WebView, which already has its own back/home bar.
         startActivity(
             Intent(this, WebViewActivity::class.java)
                 .putExtra(WebViewActivity.EXTRA_URL, url)
@@ -413,12 +405,13 @@ class KioskActivity : AppCompatActivity() {
     }
 
     /**
-     * Re-ensures the floating button right before leaving the kiosk for an app — the moment it
-     * actually matters, and while we are still in the foreground so the service can be started.
-     * It is a no-op when the button is already on screen.
+     * Builds a fresh overlay window right before leaving the kiosk for an app. Creating it at
+     * boot is unreliable on some collectors (the window ends up without a surface and is never
+     * painted); creating it here reproduces the leave-and-return-to-the-kiosk cycle that always
+     * worked, at the only moment the button is actually needed.
      */
     private fun ensureFloatingButton() {
-        if (isKioskArmed()) FloatingHomeService.start(this)
+        if (isKioskArmed()) FloatingHomeService.restart(this)
     }
 
     private fun showAssetId() {
