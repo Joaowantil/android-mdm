@@ -16,6 +16,7 @@ class PolicyCreate(BaseModel):
     kiosk_enabled: bool = False
     kiosk_apps: list[str] | None = None
     kiosk_web_links: list[KioskWebLink] | None = None
+    kiosk_pin: str | None = None
     camera_disabled: bool = False
     screenshot_disabled: bool = False
     usb_disabled: bool = False
@@ -33,6 +34,7 @@ class PolicyUpdate(BaseModel):
     kiosk_enabled: bool | None = None
     kiosk_apps: list[str] | None = None
     kiosk_web_links: list[KioskWebLink] | None = None
+    kiosk_pin: str | None = None
     camera_disabled: bool | None = None
     screenshot_disabled: bool | None = None
     usb_disabled: bool | None = None
@@ -53,6 +55,7 @@ class PolicyResponse(BaseModel):
     kiosk_enabled: bool
     kiosk_apps: list[str] | None = None
     kiosk_web_links: list[KioskWebLink] | None = None
+    kiosk_pin: str | None = None
     camera_disabled: bool
     screenshot_disabled: bool
     usb_disabled: bool

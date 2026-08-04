@@ -24,8 +24,16 @@ import {
   Checkbox,
   FormControlLabel,
   FormGroup,
+  InputAdornment,
 } from '@mui/material'
-import { Add, Delete, DevicesOther, Edit } from '@mui/icons-material'
+import {
+  Add,
+  Delete,
+  DevicesOther,
+  Edit,
+  Visibility,
+  VisibilityOff,
+} from '@mui/icons-material'
 import api from '../services/api'
 import { Policy, Device } from '../types'
 
@@ -44,6 +52,7 @@ export default function Policies() {
   const [assignTarget, setAssignTarget] = useState<Policy | null>(null)
   const [selectedDeviceIds, setSelectedDeviceIds] = useState<number[]>([])
   const [editingId, setEditingId] = useState<number | null>(null)
+  const [showKioskPin, setShowKioskPin] = useState(false)
   const [form, setForm] = useState({
     name: '',
     description: '',
@@ -51,6 +60,7 @@ export default function Policies() {
     app_list: '',
     kiosk_apps: '',
     kiosk_web_links: '',
+    kiosk_pin: '',
     camera_disabled: false,
     screenshot_disabled: false,
     usb_disabled: false,
@@ -132,16 +142,22 @@ export default function Policies() {
       kiosk_web_links: (policy.kiosk_web_links || [])
         .map((l) => `${l.label} | ${l.url}`)
         .join('\n'),
+      kiosk_pin: policy.kiosk_pin || '',
       camera_disabled: policy.camera_disabled,
       screenshot_disabled: policy.screenshot_disabled,
       usb_disabled: policy.usb_disabled,
       install_apps_disabled: policy.install_apps_disabled,
     })
+    setShowKioskPin(false)
     setEditingId(policy.id)
     setDialogOpen(true)
   }
 
   const savePolicy = async () => {
+    if (form.policy_type === 'kiosk' && form.kiosk_pin && !/^\d{4,8}$/.test(form.kiosk_pin)) {
+      setAlert({ type: 'error', message: 'O PIN do kiosk deve ter de 4 a 8 dígitos' })
+      return
+    }
     try {
       const payload = {
         name: form.name,
@@ -151,6 +167,7 @@ export default function Policies() {
         kiosk_apps: form.kiosk_apps ? form.kiosk_apps.split(',').map((a) => a.trim()) : undefined,
         kiosk_web_links:
           form.policy_type === 'kiosk' ? parseWebLinks(form.kiosk_web_links) : undefined,
+        kiosk_pin: form.policy_type === 'kiosk' ? form.kiosk_pin : undefined,
         kiosk_enabled: form.policy_type === 'kiosk',
         camera_disabled: form.camera_disabled,
         screenshot_disabled: form.screenshot_disabled,
@@ -192,11 +209,13 @@ export default function Policies() {
       app_list: '',
       kiosk_apps: '',
       kiosk_web_links: '',
+      kiosk_pin: '',
       camera_disabled: false,
       screenshot_disabled: false,
       usb_disabled: false,
       install_apps_disabled: false,
     })
+    setShowKioskPin(false)
   }
 
   const getPolicyTypeLabel = (type: string) => {
@@ -374,6 +393,32 @@ export default function Policies() {
                 margin="normal"
                 multiline
                 rows={3}
+              />
+              <TextField
+                fullWidth
+                label="PIN para sair do kiosk (4 a 8 dígitos)"
+                helperText="Aplicado a todos os coletores atribuídos a esta política"
+                type={showKioskPin ? 'text' : 'password'}
+                inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 8 }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setShowKioskPin((v) => !v)}
+                        edge="end"
+                        aria-label={showKioskPin ? 'Ocultar PIN' : 'Mostrar PIN'}
+                      >
+                        {showKioskPin ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
+                value={form.kiosk_pin}
+                onChange={(e) =>
+                  setForm({ ...form, kiosk_pin: e.target.value.replace(/\D/g, '') })
+                }
+                margin="normal"
               />
             </>
           )}

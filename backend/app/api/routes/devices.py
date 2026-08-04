@@ -130,6 +130,11 @@ async def update_device(
         device.group_id = update.group_id
 
     kiosk_changed = False
+    # The PIN is kept on the device record so the dashboard can show the one in
+    # force (operators forget it) and so re-enabling the kiosk resends it.
+    if update.kiosk_pin is not None:
+        device.kiosk_pin = update.kiosk_pin.strip() or None
+        kiosk_changed = True
     if update.kiosk_apps is not None:
         device.kiosk_apps = json.dumps(update.kiosk_apps)
         kiosk_changed = True
@@ -151,8 +156,8 @@ async def update_device(
             "apps": apps,
             "web_links": web_links,
         }
-        if update.kiosk_pin:
-            payload["pin"] = update.kiosk_pin
+        if device.kiosk_pin:
+            payload["pin"] = device.kiosk_pin
         command = DeviceCommand(
             device_id=device_id,
             command_type="set_kiosk",

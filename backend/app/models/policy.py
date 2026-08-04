@@ -19,6 +19,7 @@ class Policy(Base):
     kiosk_enabled = Column(Boolean, default=False)
     kiosk_apps = Column(Text, nullable=True)  # JSON of allowed apps in kiosk
     kiosk_web_links = Column(Text, nullable=True)  # JSON array of {label, url}
+    kiosk_pin = Column(String, nullable=True)  # replicated to every assigned device
 
     # Restrictions
     camera_disabled = Column(Boolean, default=False)

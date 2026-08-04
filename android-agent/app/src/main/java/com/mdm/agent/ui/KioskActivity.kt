@@ -23,6 +23,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.provider.Settings
 import android.util.Log
 import android.view.WindowManager
@@ -64,13 +65,17 @@ class KioskActivity : AppCompatActivity() {
     companion object {
         const val ACTION_EXIT_KIOSK = "com.mdm.agent.EXIT_KIOSK"
         const val EXTRA_APPS = "apps"
+        /** Marks an intent that deliberately (re)arms the kiosk. See [onCreate]. */
+        const val EXTRA_RESUME = "resume_kiosk"
         const val PREFS = "mdm_prefs"
+        private const val TAG = "KioskExit"
         private const val CHANNEL_ID = "mdm_agent_control"
         private const val RESUME_NOTIFICATION_ID = 102
 
         /** Launches (or returns to) the kiosk. Used on enable and when an admin resumes it. */
         fun enter(context: Context) {
             val intent = Intent(context, KioskActivity::class.java)
+                .putExtra(EXTRA_RESUME, true)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
             context.startActivity(intent)
         }
@@ -109,6 +114,21 @@ class KioskActivity : AppCompatActivity() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        // Dropping the Home alias is not instantaneous, so right after an admin leaves with
+        // the PIN the system can still route HOME back here. Re-arming the kiosk in that
+        // window is what made the PIN look like it did nothing at all.
+        val paused = isPausedInThisBoot()
+        if (paused && !intent.getBooleanExtra(EXTRA_RESUME, false)) {
+            Log.i(TAG, "kiosk is paused; showing the admin screen instead of re-arming")
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+            finish()
+            return
+        }
+
         // On Android < 9 the system status bar is stripped (empty) inside lock task, so hide it
         // and draw our own strip with clock/wifi/battery instead.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
@@ -144,6 +164,22 @@ class KioskActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.kioskOverlayWarning)
             .setOnClickListener { requestOverlayPermission() }
         startLockTaskSafely()
+    }
+
+    /**
+     * The pause only lasts for the current boot: a restart must bring the collector back to
+     * the kiosk instead of leaving it on the admin screen. Comparing the pause timestamp with
+     * the uptime tells whether the pause happened before this boot.
+     */
+    private fun isPausedInThisBoot(): Boolean {
+        val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
+        if (!prefs.getBoolean("kiosk_paused", false)) return false
+        val pausedAt = prefs.getLong("kiosk_paused_at", 0L)
+        val bootedAt = System.currentTimeMillis() - SystemClock.elapsedRealtime()
+        if (pausedAt > bootedAt) return true
+        Log.i(TAG, "the pause is from a previous boot; re-arming the kiosk")
+        prefs.edit().putBoolean("kiosk_paused", false).apply()
+        return false
     }
 
     override fun onResume() {
@@ -441,8 +477,8 @@ class KioskActivity : AppCompatActivity() {
 
     private fun promptPinToExit() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
-        val expected = prefs.getString("kiosk_pin", null)
-            ?: prefs.getString("lock_pin", null)
+        val expected = (prefs.getString("kiosk_pin", null)
+            ?: prefs.getString("lock_pin", null))?.trim()
         if (expected.isNullOrBlank()) {
             Toast.makeText(this, "Nenhum PIN configurado. Desative o kiosk pelo painel.", Toast.LENGTH_LONG).show()
             return
@@ -458,8 +494,10 @@ class KioskActivity : AppCompatActivity() {
             .setView(input)
             .setPositiveButton("Sair") { _, _ ->
                 if (input.text.toString().trim() == expected) {
+                    Log.i(TAG, "PIN accepted; pausing the kiosk")
                     pauseKiosk()
                 } else {
+                    Log.i(TAG, "PIN rejected")
                     Toast.makeText(this, "PIN incorreto", Toast.LENGTH_SHORT).show()
                 }
             }
@@ -474,17 +512,48 @@ class KioskActivity : AppCompatActivity() {
     private fun pauseKiosk() {
         getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit()
             .putBoolean("kiosk_paused", true)
+            .putLong("kiosk_paused_at", System.currentTimeMillis())
             .apply()
+        // Leave lock task *before* dropping the policy: clearing the allowlist while still
+        // pinned leaves the task locked, and every attempt to go elsewhere is then silently
+        // blocked by the system.
+        stopLockTaskSafely()
         KioskPolicy.disable(this)
         FloatingHomeService.stop(this)
-        stopLockTaskSafely()
         postResumeNotification()
-        // Send the admin to the home launcher.
-        startActivity(
-            Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
-                .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        )
+        if (!startOtherHome()) {
+            // No other launcher on the device (common on collectors): land on our own admin
+            // screen so the PIN always produces a visible result.
+            Log.i(TAG, "no other launcher available; opening the admin screen")
+            startActivity(
+                Intent(this, MainActivity::class.java)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+            )
+        }
         finish()
+    }
+
+    /**
+     * Starts a launcher other than ours. A plain HOME intent is not enough: the system may
+     * still resolve HOME to the kiosk alias for a moment, which would bounce the admin
+     * straight back into the kiosk.
+     */
+    private fun startOtherHome(): Boolean {
+        val home = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        val other = packageManager.queryIntentActivities(home, 0)
+            .firstOrNull { it.activityInfo.packageName != packageName }
+            ?: return false
+        return try {
+            startActivity(
+                Intent(home)
+                    .setClassName(other.activityInfo.packageName, other.activityInfo.name)
+                    .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            )
+            true
+        } catch (e: Exception) {
+            Log.w(TAG, "could not start ${other.activityInfo.packageName}", e)
+            false
+        }
     }
 
     private fun postResumeNotification() {
@@ -498,6 +567,7 @@ class KioskActivity : AppCompatActivity() {
             this,
             RESUME_NOTIFICATION_ID,
             Intent(this, KioskActivity::class.java)
+                .putExtra(EXTRA_RESUME, true)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP),
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
@@ -526,8 +596,11 @@ class KioskActivity : AppCompatActivity() {
     private fun stopLockTaskSafely() {
         try {
             stopLockTask()
-        } catch (_: Exception) {
+        } catch (e: Exception) {
+            Log.w(TAG, "stopLockTask failed", e)
         }
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        Log.i(TAG, "lockTaskModeState after stop = ${am.lockTaskModeState}")
     }
 
     override fun onDestroy() {

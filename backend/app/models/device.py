@@ -40,6 +40,7 @@ class Device(Base):
     kiosk_enabled = Column(Boolean, default=False)
     kiosk_apps = Column(Text, nullable=True)  # JSON array of package names
     kiosk_web_links = Column(Text, nullable=True)  # JSON array of {label, url}
+    kiosk_pin = Column(String, nullable=True)  # PIN the operator types to leave the kiosk
 
     # FCM
     fcm_token = Column(String, nullable=True)

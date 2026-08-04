@@ -22,6 +22,8 @@ import {
   Select,
   MenuItem,
   FormControl,
+  IconButton,
+  InputAdornment,
 } from '@mui/material'
 import { SelectChangeEvent } from '@mui/material/Select'
 import {
@@ -30,6 +32,8 @@ import {
   LocationOn,
   ArrowBack,
   CleaningServices,
+  Visibility,
+  VisibilityOff,
 } from '@mui/icons-material'
 import api from '../services/api'
 import { Device, Group } from '../types'
@@ -67,6 +71,7 @@ export default function DeviceDetail() {
   const [kioskApps, setKioskApps] = useState('')
   const [kioskWebLinks, setKioskWebLinks] = useState('')
   const [kioskPin, setKioskPin] = useState('')
+  const [showKioskPin, setShowKioskPin] = useState(false)
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
   const [lockPin, setLockPin] = useState('')
   const [locating, setLocating] = useState(false)
@@ -133,6 +138,7 @@ export default function DeviceDetail() {
       setKioskWebLinks(
         (dev.kiosk_web_links || []).map((l) => `${l.label} | ${l.url}`).join('\n')
       )
+      setKioskPin(dev.kiosk_pin || '')
     } catch (err: unknown) {
       // Device removed (e.g. released and deleted) -> go back to the list.
       const e = err as { response?: { status?: number } }
@@ -214,7 +220,7 @@ export default function DeviceDetail() {
         kiosk_enabled: enabled,
         kiosk_apps: apps,
         kiosk_web_links: webLinks,
-        kiosk_pin: enabled && kioskPin ? kioskPin : undefined,
+        kiosk_pin: kioskPin,
       })
       setAlert({ type: 'success', message: enabled ? 'Kiosk mode ativado' : 'Kiosk mode desativado' })
       loadDevice()
@@ -236,7 +242,7 @@ export default function DeviceDetail() {
         kiosk_enabled: device?.kiosk_enabled ?? false,
         kiosk_apps: apps,
         kiosk_web_links: webLinks,
-        kiosk_pin: device?.kiosk_enabled && kioskPin ? kioskPin : undefined,
+        kiosk_pin: kioskPin,
       })
       setAlert({ type: 'success', message: 'Configurações do kiosk salvas' })
       loadDevice()
@@ -417,8 +423,23 @@ export default function DeviceDetail() {
               <TextField
                 fullWidth
                 label="PIN para sair do kiosk (4 a 8 dígitos)"
-                type="password"
+                helperText="PIN atualmente em vigor no coletor. Use o olho para ver."
+                type={showKioskPin ? 'text' : 'password'}
                 inputProps={{ inputMode: 'numeric', pattern: '[0-9]*', maxLength: 8 }}
+                InputProps={{
+                  endAdornment: (
+                    <InputAdornment position="end">
+                      <IconButton
+                        size="small"
+                        onClick={() => setShowKioskPin((v) => !v)}
+                        edge="end"
+                        aria-label={showKioskPin ? 'Ocultar PIN' : 'Mostrar PIN'}
+                      >
+                        {showKioskPin ? <VisibilityOff /> : <Visibility />}
+                      </IconButton>
+                    </InputAdornment>
+                  ),
+                }}
                 value={kioskPin}
                 onChange={(e) => setKioskPin(e.target.value.replace(/\D/g, ''))}
                 sx={{ my: 2 }}

@@ -6,6 +6,7 @@ import android.content.Intent
 import android.util.Log
 import com.mdm.agent.services.HeartbeatService
 import com.mdm.agent.services.HeartbeatWorker
+import com.mdm.agent.ui.KioskActivity
 
 class BootReceiver : BroadcastReceiver() {
 
@@ -17,6 +18,15 @@ class BootReceiver : BroadcastReceiver() {
                 HeartbeatService.start(context)
             }
             HeartbeatWorker.schedule(context)
+
+            // Pausing the kiosk with the PIN disables our Home alias, so a reboot while paused
+            // would leave the collector outside the kiosk. The pause is only for the current
+            // boot: bring the kiosk back.
+            if (prefs.getBoolean("kiosk_enabled", false) && prefs.getBoolean("kiosk_paused", false)) {
+                Log.i("BootReceiver", "kiosk was paused before the reboot; re-arming it")
+                prefs.edit().putBoolean("kiosk_paused", false).apply()
+                KioskActivity.enter(context)
+            }
         }
     }
 }

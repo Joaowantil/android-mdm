@@ -62,6 +62,7 @@ class DeviceResponse(BaseModel):
     kiosk_enabled: bool
     kiosk_apps: list[str] | None = None
     kiosk_web_links: list[KioskWebLink] | None = None
+    kiosk_pin: str | None = None
     battery_level: int | None
     storage_free: int | None
     storage_total: int | None
