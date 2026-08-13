@@ -30,6 +30,7 @@ def _policy_to_response(policy: Policy) -> PolicyResponse:
         kiosk_web_links=(
             json.loads(policy.kiosk_web_links) if policy.kiosk_web_links else None
         ),
+        kiosk_pin=policy.kiosk_pin,
         camera_disabled=policy.camera_disabled,
         screenshot_disabled=policy.screenshot_disabled,
         usb_disabled=policy.usb_disabled,
@@ -41,6 +42,41 @@ def _policy_to_response(policy: Policy) -> PolicyResponse:
         is_active=policy.is_active,
         created_at=policy.created_at,
     )
+
+
+async def _push_kiosk_to_assigned(db: AsyncSession, policy: Policy) -> None:
+    """Re-send the kiosk config (including the exit PIN) to the assigned devices.
+
+    Editing a policy has to reach the devices already in that operation, not only
+    the ones assigned afterwards.
+    """
+    result = await db.execute(
+        select(PolicyAssignment.device_id).where(
+            PolicyAssignment.policy_id == policy.id
+        )
+    )
+    kiosk_apps = json.loads(policy.kiosk_apps) if policy.kiosk_apps else []
+    web_links = json.loads(policy.kiosk_web_links) if policy.kiosk_web_links else []
+    for (dev_id,) in result.all():
+        dev_result = await db.execute(select(Device).where(Device.id == dev_id))
+        device = dev_result.scalar_one_or_none()
+        if not device:
+            continue
+        device.kiosk_enabled = True
+        device.kiosk_apps = json.dumps(kiosk_apps)
+        device.kiosk_web_links = json.dumps(web_links) if web_links else None
+        if policy.kiosk_pin:
+            device.kiosk_pin = policy.kiosk_pin
+        payload = {"enabled": True, "apps": kiosk_apps, "web_links": web_links}
+        if device.kiosk_pin:
+            payload["pin"] = device.kiosk_pin
+        db.add(DeviceCommand(
+            device_id=dev_id,
+            command_type="set_kiosk",
+            payload=json.dumps(payload),
+            status="pending",
+        ))
+
 
 router = APIRouter(prefix="/policies", tags=["Policies"])
 
@@ -73,6 +109,7 @@ async def create_policy(
             if policy.kiosk_web_links
             else None
         ),
+        kiosk_pin=(policy.kiosk_pin or "").strip() or None,
         camera_disabled=policy.camera_disabled,
         screenshot_disabled=policy.screenshot_disabled,
         usb_disabled=policy.usb_disabled,
@@ -117,9 +154,14 @@ async def update_policy(
     for key, value in update_data.items():
         if key in ("app_list", "kiosk_apps", "kiosk_web_links") and value is not None:
             setattr(policy, key, json.dumps(value))
+        elif key == "kiosk_pin":
+            policy.kiosk_pin = (value or "").strip() or None
         else:
             setattr(policy, key, value)
 
+    await db.flush()
+    if policy.policy_type == "kiosk" or policy.kiosk_enabled:
+        await _push_kiosk_to_assigned(db, policy)
     await db.flush()
     await db.refresh(policy)
     return _policy_to_response(policy)
@@ -223,14 +265,22 @@ async def assign_policy(
             device.kiosk_enabled = True
             device.kiosk_apps = json.dumps(kiosk_apps)
             device.kiosk_web_links = json.dumps(web_links) if web_links else None
+            # The exit PIN travels with the policy so every device in the same
+            # operation shares it; a device-specific PIN stays put if the policy
+            # does not define one.
+            if policy.kiosk_pin:
+                device.kiosk_pin = policy.kiosk_pin
+            payload = {
+                "enabled": True,
+                "apps": kiosk_apps,
+                "web_links": web_links,
+            }
+            if device.kiosk_pin:
+                payload["pin"] = device.kiosk_pin
             db.add(DeviceCommand(
                 device_id=dev_id,
                 command_type="set_kiosk",
-                payload=json.dumps({
-                    "enabled": True,
-                    "apps": kiosk_apps,
-                    "web_links": web_links,
-                }),
+                payload=json.dumps(payload),
                 status="pending",
             ))
 

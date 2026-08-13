@@ -230,12 +230,13 @@ object CommandProcessor {
             .putString("kiosk_web_links", webLinksJson)
             .apply()
         if (!pin.isNullOrBlank()) {
-            prefs.edit().putString("kiosk_pin", pin).apply()
+            prefs.edit().putString("kiosk_pin", pin.trim()).apply()
         }
 
         if (enabled) {
             KioskPolicy.enable(context, apps)
             val intent = Intent(context, KioskActivity::class.java)
+                .putExtra(KioskActivity.EXTRA_RESUME, true)
                 .putStringArrayListExtra(KioskActivity.EXTRA_APPS, ArrayList(apps))
             launchActivity(
                 context,
