@@ -183,6 +183,22 @@ object CommandProcessor {
         applyRestriction(dpm, adminComponent, UserManager.DISALLOW_UNINSTALL_APPS, flag("uninstall_apps_disabled"))
         applyRestriction(dpm, adminComponent, UserManager.DISALLOW_FACTORY_RESET, flag("factory_reset_disabled"))
 
+        // App allowlist/blocklist: the server always sends policy_type + app_list, but
+        // until now nothing on this side ever read them, so the policy had no effect on
+        // the device. setPackagesSuspended is what actually blocks the apps.
+        val policyType = payload["policy_type"] as? String
+        @Suppress("UNCHECKED_CAST")
+        val appList = (payload["app_list"] as? List<String>) ?: emptyList()
+        when (policyType) {
+            "app_allowlist" -> AppRestrictionPolicy.apply(context, "app_allowlist", appList)
+            "app_blocklist" -> AppRestrictionPolicy.apply(context, "app_blocklist", appList)
+            "app_clear" -> AppRestrictionPolicy.clear(context) // policy was unassigned from this device
+            "restrictions" -> {
+                // A pure restrictions policy doesn't define an app list; don't touch
+                // whatever allowlist/blocklist might already be active from another policy.
+            }
+        }
+
         // A kiosk policy actually puts the device into kiosk mode with its allowed apps.
         val kioskEnabled = payload["kiosk_enabled"] as? Boolean ?: false
         if (kioskEnabled) {
