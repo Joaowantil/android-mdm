@@ -218,6 +218,7 @@ async def assign_policy(
         await db.delete(old)
 
     is_kiosk = policy.policy_type == "kiosk" or policy.kiosk_enabled
+    is_app_list_policy = policy.policy_type in ("app_allowlist", "app_blocklist")
 
     # Devices removed from a kiosk policy must have the kiosk torn down so the
     # dashboard "reset" actually reaches the device (apps/sites cleared).
@@ -238,6 +239,19 @@ async def assign_policy(
                     "enabled": False,
                     "apps": [],
                     "web_links": [],
+                }),
+                status="pending",
+            ))
+        # Devices removed from an allowlist/blocklist must have their suspended apps
+        # released, otherwise they'd stay blocked forever with no policy attached.
+        if is_app_list_policy:
+            db.add(DeviceCommand(
+                device_id=dev_id,
+                command_type="apply_policy",
+                payload=json.dumps({
+                    "policy_type": "app_clear",
+                    "app_list": [],
+                    "restrictions": {},
                 }),
                 status="pending",
             ))

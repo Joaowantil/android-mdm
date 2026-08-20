@@ -1,135 +1,69 @@
-<?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"
-    xmlns:tools="http://schemas.android.com/tools">
-
-    <uses-permission android:name="android.permission.INTERNET" />
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
-    <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
-    <uses-permission android:name="android.permission.CAMERA" />
-    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
-    <uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION" />
-    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
-    <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
-    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-    <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES" />
-    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
-    <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES"
-        tools:ignore="QueryAllPackagesPermission" />
-
-    <application
-        android:allowBackup="false"
-        android:icon="@mipmap/ic_launcher"
-        android:roundIcon="@mipmap/ic_launcher_round"
-        android:label="@string/app_name"
-        android:networkSecurityConfig="@xml/network_security_config"
-        android:supportsRtl="true"
-        android:usesCleartextTraffic="true"
-        android:theme="@style/Theme.MDMAgent">
-
-        <activity
-            android:name=".ui.EnrollmentActivity"
-            android:exported="true"
-            android:theme="@style/Theme.MDMAgent">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-        </activity>
-
-        <activity
-            android:name=".ui.MainActivity"
-            android:exported="false" />
-
-        <activity
-            android:name=".ui.LockScreenActivity"
-            android:exported="false"
-            android:launchMode="singleInstance"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:screenOrientation="portrait"
-            android:showWhenLocked="true"
-            android:turnScreenOn="true"
-            android:theme="@style/Theme.MDMAgent" />
-
-        <activity
-            android:name=".ui.KioskActivity"
-            android:exported="false"
-            android:launchMode="singleInstance"
-            android:excludeFromRecents="true"
-            android:taskAffinity=""
-            android:theme="@style/Theme.MDMAgent.Kiosk" />
-
-        <activity
-            android:name=".ui.WebViewActivity"
-            android:exported="false"
-            android:launchMode="singleTask"
-            android:configChanges="orientation|screenSize|keyboardHidden"
-            android:theme="@style/Theme.MDMAgent.NoActionBar" />
-
-        <!-- HOME alias enabled only while kiosk is active so that the Home button
-             returns to the kiosk; disabled on exit to restore the real launcher. -->
-        <activity-alias
-            android:name=".ui.KioskHomeAlias"
-            android:targetActivity=".ui.KioskActivity"
-            android:exported="true"
-            android:enabled="false">
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-                <category android:name="android.intent.category.HOME" />
-                <category android:name="android.intent.category.DEFAULT" />
-            </intent-filter>
-        </activity-alias>
-
-        <!-- Device Admin Receiver -->
-        <receiver
-            android:name=".receivers.MDMDeviceAdminReceiver"
-            android:permission="android.permission.BIND_DEVICE_ADMIN"
-            android:exported="true">
-            <meta-data
-                android:name="android.app.device_admin"
-                android:resource="@xml/device_admin_policies" />
-            <intent-filter>
-                <action android:name="android.app.action.DEVICE_ADMIN_ENABLED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Boot Receiver -->
-        <receiver
-            android:name=".receivers.BootReceiver"
-            android:exported="true">
-            <intent-filter>
-                <action android:name="android.intent.action.BOOT_COMPLETED" />
-            </intent-filter>
-        </receiver>
-
-        <!-- Heartbeat Service -->
-        <service
-            android:name=".services.HeartbeatService"
-            android:exported="false"
-            android:foregroundServiceType="dataSync" />
-
-        <!-- Floating "return to kiosk" button overlay -->
-        <service
-            android:name=".services.FloatingHomeService"
-            android:exported="false" />
-
-        <!-- Same button drawn as an accessibility overlay, for collectors where a plain app
-             overlay is registered but never painted on top of a kiosk app. -->
-        <service
-            android:name=".services.HomeAccessibilityService"
-            android:exported="true"
-            android:label="@string/accessibility_home_label"
-            android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
-            <intent-filter>
-                <action android:name="android.accessibilityservice.AccessibilityService" />
-            </intent-filter>
-            <meta-data
-                android:name="android.accessibilityservice"
-                android:resource="@xml/home_accessibility_service" />
-        </service>
-
-    </application>
-
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" xmlns:tools="http://schemas.android.com/tools">
+<uses-permission android:name="android.permission.INTERNET"/>
+<uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+<uses-permission android:name="android.permission.ACCESS_WIFI_STATE"/>
+<uses-permission android:name="android.permission.CAMERA"/>
+<uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+<uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+<uses-permission android:name="android.permission.ACCESS_BACKGROUND_LOCATION"/>
+<uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+<uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC"/>
+<uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+<uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
+<uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+<uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission"/>
+<application android:allowBackup="false" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:label="@string/app_name" android:networkSecurityConfig="@xml/network_security_config" android:supportsRtl="true" android:usesCleartextTraffic="true" android:theme="@style/Theme.MDMAgent">
+<activity android:name=".ui.EnrollmentActivity" android:exported="true" android:theme="@style/Theme.MDMAgent">
+<intent-filter>
+<action android:name="android.intent.action.MAIN"/>
+<category android:name="android.intent.category.LAUNCHER"/>
+</intent-filter>
+</activity>
+<activity android:name=".ui.MainActivity" android:exported="false"/>
+<activity android:name=".ui.LockScreenActivity" android:exported="false" android:launchMode="singleInstance" android:excludeFromRecents="true" android:taskAffinity="" android:screenOrientation="portrait" android:showWhenLocked="true" android:turnScreenOn="true" android:theme="@style/Theme.MDMAgent"/>
+<activity android:name=".ui.KioskActivity" android:exported="false" android:launchMode="singleInstance" android:excludeFromRecents="true" android:taskAffinity="" android:theme="@style/Theme.MDMAgent.Kiosk"/>
+<activity android:name=".ui.WebViewActivity" android:exported="false" android:launchMode="singleTask" android:configChanges="orientation|screenSize|keyboardHidden" android:theme="@style/Theme.MDMAgent.NoActionBar"/>
+<!--  HOME alias enabled only while kiosk is active so that the Home button
+             returns to the kiosk; disabled on exit to restore the real launcher.  -->
+<activity-alias android:name=".ui.KioskHomeAlias" android:targetActivity=".ui.KioskActivity" android:exported="true" android:enabled="false">
+<intent-filter>
+<action android:name="android.intent.action.MAIN"/>
+<category android:name="android.intent.category.HOME"/>
+<category android:name="android.intent.category.DEFAULT"/>
+</intent-filter>
+</activity-alias>
+<!--  Device Admin Receiver  -->
+<receiver android:name=".receivers.MDMDeviceAdminReceiver" android:permission="android.permission.BIND_DEVICE_ADMIN" android:exported="true">
+<meta-data android:name="android.app.device_admin" android:resource="@xml/device_admin_policies"/>
+<intent-filter>
+<action android:name="android.app.action.DEVICE_ADMIN_ENABLED"/>
+</intent-filter>
+</receiver>
+<!--  Boot Receiver  -->
+<receiver android:name=".receivers.BootReceiver" android:exported="true">
+<intent-filter>
+<action android:name="android.intent.action.BOOT_COMPLETED"/>
+</intent-filter>
+</receiver>
+<!--  Package Change Receiver (re-checks app allowlist/blocklist on new installs)  -->
+<receiver android:name=".receivers.PackageChangeReceiver" android:exported="true">
+<intent-filter>
+<action android:name="android.intent.action.PACKAGE_ADDED"/>
+<data android:scheme="package"/>
+</intent-filter>
+</receiver>
+<!--  Heartbeat Service  -->
+<service android:name=".services.HeartbeatService" android:exported="false" android:foregroundServiceType="dataSync"/>
+<!--  Floating "return to kiosk" button overlay  -->
+<service android:name=".services.FloatingHomeService" android:exported="false"/>
+<!--  Same button drawn as an accessibility overlay, for collectors where a plain app
+             overlay is registered but never painted on top of a kiosk app.  -->
+<service android:name=".services.HomeAccessibilityService" android:exported="true" android:label="@string/accessibility_home_label" android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
+<intent-filter>
+<action android:name="android.accessibilityservice.AccessibilityService"/>
+</intent-filter>
+<meta-data android:name="android.accessibilityservice" android:resource="@xml/home_accessibility_service"/>
+</service>
+</application>
 </manifest>

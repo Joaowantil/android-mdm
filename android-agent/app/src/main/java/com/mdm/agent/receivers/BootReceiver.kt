@@ -4,6 +4,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.util.Log
+import com.mdm.agent.services.AppRestrictionPolicy
 import com.mdm.agent.services.HeartbeatService
 import com.mdm.agent.services.HeartbeatWorker
 import com.mdm.agent.ui.KioskActivity
@@ -27,6 +28,11 @@ class BootReceiver : BroadcastReceiver() {
                 prefs.edit().putBoolean("kiosk_paused", false).apply()
                 KioskActivity.enter(context)
             }
+
+            // The system itself persists package suspension across reboots, but we
+            // re-apply from our saved state as a self-heal safety net (same idea used
+            // for the kiosk retries) in case anything drifted.
+            AppRestrictionPolicy.reapplyFromPrefs(context)
         }
     }
 }
