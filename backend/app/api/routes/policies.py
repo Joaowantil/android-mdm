@@ -78,6 +78,34 @@ async def _push_kiosk_to_assigned(db: AsyncSession, policy: Policy) -> None:
         ))
 
 
+async def _push_app_policy_to_assigned(db: AsyncSession, policy: Policy) -> None:
+    """Re-send an app_allowlist/app_blocklist config to the devices already assigned.
+
+    Mirrors _push_kiosk_to_assigned: editing a policy (e.g. adding one more app
+    to the list) has to reach devices already in that assignment, not only
+    devices assigned afterwards. Without this, apply_policy is only ever sent
+    once, at assignment time, and any later edit needs an unassign/reassign to
+    actually reach the device.
+    """
+    result = await db.execute(
+        select(PolicyAssignment.device_id).where(
+            PolicyAssignment.policy_id == policy.id
+        )
+    )
+    app_list = json.loads(policy.app_list) if policy.app_list else []
+    for (dev_id,) in result.all():
+        db.add(DeviceCommand(
+            device_id=dev_id,
+            command_type="apply_policy",
+            payload=json.dumps({
+                "policy_type": policy.policy_type,
+                "app_list": app_list,
+                "restrictions": {},
+            }),
+            status="pending",
+        ))
+
+
 router = APIRouter(prefix="/policies", tags=["Policies"])
 
 
@@ -162,6 +190,8 @@ async def update_policy(
     await db.flush()
     if policy.policy_type == "kiosk" or policy.kiosk_enabled:
         await _push_kiosk_to_assigned(db, policy)
+    elif policy.policy_type in ("app_allowlist", "app_blocklist"):
+        await _push_app_policy_to_assigned(db, policy)
     await db.flush()
     await db.refresh(policy)
     return _policy_to_response(policy)
