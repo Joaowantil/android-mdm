@@ -207,7 +207,47 @@ async def delete_policy(
     policy = result.scalar_one_or_none()
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
+
+    # Deleting a policy must tear down whatever it applied on-device, the same
+    # way unassigning a device from it does - otherwise devices are left
+    # locked/blocked forever with no policy left to point at.
+    is_kiosk = policy.policy_type == "kiosk" or policy.kiosk_enabled
+    is_app_list_policy = policy.policy_type in ("app_allowlist", "app_blocklist")
+
+    assigned = await db.execute(
+        select(PolicyAssignment).where(PolicyAssignment.policy_id == policy_id)
+    )
+    assignment_rows = assigned.scalars().all()
+    for row in assignment_rows:
+        dev_id = row.device_id
+        if is_kiosk:
+            dev_result = await db.execute(select(Device).where(Device.id == dev_id))
+            device = dev_result.scalar_one_or_none()
+            if device:
+                device.kiosk_enabled = False
+                device.kiosk_apps = None
+                device.kiosk_web_links = None
+            db.add(DeviceCommand(
+                device_id=dev_id,
+                command_type="set_kiosk",
+                payload=json.dumps({"enabled": False, "apps": [], "web_links": []}),
+                status="pending",
+            ))
+        if is_app_list_policy:
+            db.add(DeviceCommand(
+                device_id=dev_id,
+                command_type="apply_policy",
+                payload=json.dumps({
+                    "policy_type": "app_clear",
+                    "app_list": [],
+                    "restrictions": {},
+                }),
+                status="pending",
+            ))
+        await db.delete(row)
+
     await db.delete(policy)
+    await db.flush()
     return {"message": "Policy deleted"}
 
 
@@ -285,6 +325,25 @@ async def assign_policy(
                 }),
                 status="pending",
             ))
+
+    # A device having two app-list-type policies (allowlist + blocklist, or two
+    # blocklists) at once is what caused "allowlist doesn't work": whichever
+    # policy's apply_policy command reaches the device last silently overwrites
+    # the other's effect (the agent only tracks one mode/list at a time). So
+    # assigning a device to an app_allowlist/app_blocklist policy here always
+    # unassigns it from any OTHER policy of that same policy family first.
+    if is_app_list_policy and request.device_ids:
+        other_assignments = await db.execute(
+            select(PolicyAssignment, Policy.policy_type)
+            .join(Policy, Policy.id == PolicyAssignment.policy_id)
+            .where(
+                PolicyAssignment.device_id.in_(request.device_ids),
+                PolicyAssignment.policy_id != policy_id,
+                Policy.policy_type.in_(("app_allowlist", "app_blocklist")),
+            )
+        )
+        for assignment_row, _other_type in other_assignments.all():
+            await db.delete(assignment_row)
 
     assigned_count = 0
     for dev_id in request.device_ids:
