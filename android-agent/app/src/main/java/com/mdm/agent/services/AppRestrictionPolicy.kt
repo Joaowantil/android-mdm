@@ -3,7 +3,8 @@ package com.mdm.agent.services
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
-import android.content.pm.ApplicationInfo
+import android.content.Intent
+import android.content.pm.PackageManager
 import android.util.Log
 import com.mdm.agent.receivers.MDMDeviceAdminReceiver
 
@@ -12,7 +13,9 @@ import com.mdm.agent.receivers.MDMDeviceAdminReceiver
  * suspension (setPackagesSuspended). A suspended app can't be opened - the system shows
  * its own "app isn't available" screen - and the data stays intact (no uninstall/hide).
  *
- * Allowlist: every installed user (non-system) app that is NOT in the list gets suspended.
+ * Allowlist: every installed package that is NOT in the list gets suspended (except a
+ * small safety net of components the device needs to keep working - see
+ * installedTargetablePackages).
  * Blocklist: only the packages present in the list get suspended.
  *
  * State is persisted in SharedPreferences so it survives reboots (see BootReceiver) and
@@ -78,8 +81,8 @@ object AppRestrictionPolicy {
             .toSet()
 
         val target: Set<String> = when (mode) {
-            "app_allowlist" -> installedUserPackages(context)
-                .filterNot { it == context.packageName || it in list }
+            "app_allowlist" -> installedTargetablePackages(context)
+                .filterNot { it in list }
                 .toSet()
             "app_blocklist" -> list.filter { isInstalled(context, it) }.toSet()
             else -> emptySet()
@@ -125,9 +128,42 @@ object AppRestrictionPolicy {
             false
         }
 
-    /** Non-system installed packages - i.e. apps a person could actually open. */
-    private fun installedUserPackages(context: Context): List<String> =
-        context.packageManager.getInstalledApplications(0)
-            .filter { it.flags and ApplicationInfo.FLAG_SYSTEM == 0 }
+    /**
+     * Every installed package eligible to be suspended under an allowlist, except:
+     * - our own agent (would lock ourselves out)
+     * - a small explicit safety net of components the device needs to keep working
+     *
+     * We deliberately do NOT filter out ApplicationInfo.FLAG_SYSTEM apps here. On
+     * enterprise/rugged devices (Zebra/Symbol and similar) almost everything - Chrome,
+     * Calculator, Gmail, the OEM's own tools - ships baked into the system image and
+     * carries FLAG_SYSTEM despite being an app a person opens every day. Filtering by
+     * that flag left the allowlist target set nearly empty on this class of hardware, so
+     * the allowlist silently suspended nothing. setPackagesSuspended() itself already
+     * refuses to touch genuinely protected packages (the active launcher, the current
+     * input method, the device owner) and we log any refusals - so the explicit list
+     * below is a second, defense-in-depth safety net, not the only one.
+     */
+    private fun installedTargetablePackages(context: Context): List<String> {
+        val neverSuspend = mutableSetOf(
+            context.packageName,
+            "android",
+            "com.android.systemui",
+            "com.android.settings",
+            "com.google.android.packageinstaller",
+            "com.android.permissioncontroller",
+        )
+        defaultLauncherPackage(context)?.let { neverSuspend.add(it) }
+
+        return context.packageManager.getInstalledApplications(0)
             .map { it.packageName }
+            .filterNot { it in neverSuspend }
+    }
+
+    private fun defaultLauncherPackage(context: Context): String? {
+        val homeIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_HOME)
+        return context.packageManager
+            .resolveActivity(homeIntent, PackageManager.MATCH_DEFAULT_ONLY)
+            ?.activityInfo
+            ?.packageName
+    }
 }
