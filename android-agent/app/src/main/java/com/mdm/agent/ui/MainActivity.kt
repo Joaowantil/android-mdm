@@ -16,6 +16,7 @@ import com.mdm.agent.R
 import com.mdm.agent.services.FloatingHomeService
 import com.mdm.agent.services.HeartbeatService
 import com.mdm.agent.services.HeartbeatWorker
+import com.mdm.agent.receivers.WatchdogReceiver
 import com.mdm.agent.services.MdmRemover
 
 class MainActivity : AppCompatActivity() {
@@ -35,6 +36,7 @@ class MainActivity : AppCompatActivity() {
         // Fast command polling + periodic background fallback
         HeartbeatService.start(this)
         HeartbeatWorker.schedule(this)
+        WatchdogReceiver.schedule(this)
 
         // Allow an admin to re-enter the kiosk after pausing it with the PIN.
         val enterKioskButton = findViewById<Button>(R.id.enterKioskButton)
