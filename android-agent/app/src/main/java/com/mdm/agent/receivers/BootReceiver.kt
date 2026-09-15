@@ -19,6 +19,7 @@ class BootReceiver : BroadcastReceiver() {
                 HeartbeatService.start(context)
             }
             HeartbeatWorker.schedule(context)
+            WatchdogReceiver.schedule(context)
 
             // Pausing the kiosk with the PIN disables our Home alias, so a reboot while paused
             // would leave the collector outside the kiosk. The pause is only for the current
