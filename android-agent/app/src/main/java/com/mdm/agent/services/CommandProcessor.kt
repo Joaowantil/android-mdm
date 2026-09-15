@@ -109,6 +109,7 @@ object CommandProcessor {
                 "clear_web_cache" -> clearWebCache(context)
                 "set_kiosk" -> setKiosk(context, command.payload)
                 "apply_policy" -> applyPolicy(context, dpm, adminComponent, command.payload)
+                "reboot" -> dpm.reboot(adminComponent) // Device Owner only, requires API 24+
                 else -> {
                     Log.w(TAG, "Unknown command type: ${command.command_type}")
                     success = false
