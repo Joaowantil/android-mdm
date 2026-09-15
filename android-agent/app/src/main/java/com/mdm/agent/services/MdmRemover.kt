@@ -51,6 +51,7 @@ object MdmRemover {
         }
         HeartbeatService.stop(app)
         WorkManager.getInstance(app).cancelUniqueWork(HeartbeatWorker.WORK_NAME)
+        com.mdm.agent.receivers.WatchdogReceiver.cancel(app)
 
         // 3) Drop restrictions that could block uninstall, then release ownership.
         if (dpm.isDeviceOwnerApp(app.packageName)) {
