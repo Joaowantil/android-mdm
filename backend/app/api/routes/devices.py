@@ -256,6 +256,28 @@ async def wipe_device(
     return command
 
 
+@router.post("/{device_id}/reboot", response_model=CommandResponse)
+async def reboot_device(
+    device_id: int,
+    db: AsyncSession = Depends(get_db),
+    _current_user: dict = Depends(get_current_user),
+):
+    """Reboots the device remotely. Requires Device Owner (dpm.reboot(), API 24+)."""
+    result = await db.execute(select(Device).where(Device.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    command = DeviceCommand(
+        device_id=device_id,
+        command_type="reboot",
+        status="pending",
+    )
+    db.add(command)
+    await db.flush()
+    return command
+
+
 @router.post("/{device_id}/locate", response_model=CommandResponse)
 async def locate_device(
     device_id: int,
