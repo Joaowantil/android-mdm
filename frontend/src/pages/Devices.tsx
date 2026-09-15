@@ -34,6 +34,7 @@ import {
   Add,
   ContentCopy,
   Visibility,
+  RestartAlt,
 } from '@mui/icons-material'
 import { QRCodeCanvas } from 'qrcode.react'
 import api from '../services/api'
@@ -157,6 +158,16 @@ export default function Devices() {
       loadDevices()
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao bloquear dispositivo' })
+    }
+  }
+
+  const rebootDevice = async (id: number) => {
+    if (!window.confirm('Reiniciar este dispositivo agora?')) return
+    try {
+      await api.post(`/devices/${id}/reboot`)
+      setAlert({ type: 'success', message: 'Comando de reinicialização enviado' })
+    } catch (err) {
+      setAlert({ type: 'error', message: 'Falha ao reiniciar dispositivo' })
     }
   }
 
@@ -392,6 +403,14 @@ export default function Devices() {
                             onClick={() => lockDevice(device.id)}
                           >
                             <Lock />
+                          </IconButton>
+                        </Tooltip>
+                        <Tooltip title="Reiniciar">
+                          <IconButton
+                            size="small"
+                            onClick={() => rebootDevice(device.id)}
+                          >
+                            <RestartAlt />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Localizar">

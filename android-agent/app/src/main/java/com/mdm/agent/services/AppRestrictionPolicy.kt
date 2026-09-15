@@ -13,9 +13,13 @@ import com.mdm.agent.receivers.MDMDeviceAdminReceiver
  * suspension (setPackagesSuspended). A suspended app can't be opened - the system shows
  * its own "app isn't available" screen - and the data stays intact (no uninstall/hide).
  *
- * Allowlist: every installed package that is NOT in the list gets suspended (except a
- * small safety net of components the device needs to keep working - see
- * installedTargetablePackages).
+ * Allowlist: only installed packages that have a LAUNCHER activity - i.e. something with
+ * an icon a person could actually tap - get suspended when not in the list. Background
+ * services, content providers, and other invisible components are left alone entirely;
+ * they were never something the person could "open" in the first place, so blocking them
+ * doesn't belong in an app allowlist and previously caused things like the status bar,
+ * IME, or other invisible-but-essential components to break when a first version of this
+ * suspended literally every installed package.
  * Blocklist: only the packages present in the list get suspended.
  *
  * State is persisted in SharedPreferences so it survives reboots (see BootReceiver) and
@@ -81,7 +85,7 @@ object AppRestrictionPolicy {
             .toSet()
 
         val target: Set<String> = when (mode) {
-            "app_allowlist" -> installedTargetablePackages(context)
+            "app_allowlist" -> launchablePackages(context)
                 .filterNot { it in list }
                 .toSet()
             "app_blocklist" -> list.filter { isInstalled(context, it) }.toSet()
@@ -129,21 +133,15 @@ object AppRestrictionPolicy {
         }
 
     /**
-     * Every installed package eligible to be suspended under an allowlist, except:
-     * - our own agent (would lock ourselves out)
-     * - a small explicit safety net of components the device needs to keep working
-     *
-     * We deliberately do NOT filter out ApplicationInfo.FLAG_SYSTEM apps here. On
-     * enterprise/rugged devices (Zebra/Symbol and similar) almost everything - Chrome,
-     * Calculator, Gmail, the OEM's own tools - ships baked into the system image and
-     * carries FLAG_SYSTEM despite being an app a person opens every day. Filtering by
-     * that flag left the allowlist target set nearly empty on this class of hardware, so
-     * the allowlist silently suspended nothing. setPackagesSuspended() itself already
-     * refuses to touch genuinely protected packages (the active launcher, the current
-     * input method, the device owner) and we log any refusals - so the explicit list
-     * below is a second, defense-in-depth safety net, not the only one.
+     * Packages that have at least one activity with CATEGORY_LAUNCHER - i.e. apps that show
+     * up with an icon somewhere the person could tap to open them (app drawer, home screen,
+     * kiosk grid). This is what "allowlist" should mean: only visible, openable apps are
+     * candidates for suspension, never background services, providers, or other invisible
+     * system components. A small explicit safety net is still excluded on top of that, as a
+     * second line of defense beyond what setPackagesSuspended() itself already refuses to
+     * touch (active launcher, current IME, the device owner).
      */
-    private fun installedTargetablePackages(context: Context): List<String> {
+    private fun launchablePackages(context: Context): List<String> {
         val neverSuspend = mutableSetOf(
             context.packageName,
             "android",
@@ -154,8 +152,11 @@ object AppRestrictionPolicy {
         )
         defaultLauncherPackage(context)?.let { neverSuspend.add(it) }
 
-        return context.packageManager.getInstalledApplications(0)
-            .map { it.packageName }
+        val launcherIntent = Intent(Intent.ACTION_MAIN).addCategory(Intent.CATEGORY_LAUNCHER)
+        return context.packageManager
+            .queryIntentActivities(launcherIntent, PackageManager.MATCH_DEFAULT_ONLY)
+            .map { it.activityInfo.packageName }
+            .distinct()
             .filterNot { it in neverSuspend }
     }
 

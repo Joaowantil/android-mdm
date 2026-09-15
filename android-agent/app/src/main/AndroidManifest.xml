@@ -12,6 +12,8 @@
 <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
 <uses-permission android:name="android.permission.REQUEST_DELETE_PACKAGES"/>
 <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW"/>
+<uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM"/>
+<uses-permission android:name="android.permission.USE_EXACT_ALARM"/>
 <uses-permission android:name="android.permission.QUERY_ALL_PACKAGES" tools:ignore="QueryAllPackagesPermission"/>
 <application android:allowBackup="false" android:icon="@mipmap/ic_launcher" android:roundIcon="@mipmap/ic_launcher_round" android:label="@string/app_name" android:networkSecurityConfig="@xml/network_security_config" android:supportsRtl="true" android:usesCleartextTraffic="true" android:theme="@style/Theme.MDMAgent">
 <activity android:name=".ui.EnrollmentActivity" android:exported="true" android:theme="@style/Theme.MDMAgent">
@@ -53,6 +55,9 @@
 <data android:scheme="package"/>
 </intent-filter>
 </receiver>
+<!--  Watchdog Receiver (self-heal: restarts HeartbeatService if the OS killed it,
+             on a much shorter interval than WorkManager's 15-minute floor)  -->
+<receiver android:name=".receivers.WatchdogReceiver" android:exported="false"/>
 <!--  Heartbeat Service  -->
 <service android:name=".services.HeartbeatService" android:exported="false" android:foregroundServiceType="dataSync"/>
 <!--  Floating "return to kiosk" button overlay  -->

@@ -23,6 +23,7 @@ import com.mdm.agent.services.ApiClient
 import com.mdm.agent.services.EnrollRequest
 import com.mdm.agent.services.HeartbeatService
 import com.mdm.agent.services.HeartbeatWorker
+import com.mdm.agent.receivers.WatchdogReceiver
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -162,6 +163,7 @@ class EnrollmentActivity : AppCompatActivity() {
                         // Start fast command polling + periodic background fallback
                         HeartbeatService.start(this@EnrollmentActivity)
                         HeartbeatWorker.schedule(this@EnrollmentActivity)
+                        WatchdogReceiver.schedule(this@EnrollmentActivity)
 
                         statusText.text = "Dispositivo registrado com sucesso!"
                         Toast.makeText(
