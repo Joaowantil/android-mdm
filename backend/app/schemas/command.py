@@ -11,6 +11,7 @@ class CommandCreate(BaseModel):
 class CommandAck(BaseModel):
     status: str  # executed, failed
     result: dict | None = None
+    device_secret: str | None = None
 
 
 class CommandResponse(BaseModel):
