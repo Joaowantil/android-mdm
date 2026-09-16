@@ -35,6 +35,12 @@ class Device(Base):
     # Enrollment
     enrollment_token = Column(String, unique=True, nullable=True)
     enrolled_at = Column(DateTime(timezone=True), nullable=True)
+    # Per-device credential issued at enrollment, required on every heartbeat/ack/location
+    # call afterwards. Kept separate from device_id, which is client-chosen and travels in
+    # every request unencrypted - device_id identifies the device, device_secret proves it.
+    # Nullable for devices enrolled before this field existed (see devices.py for the
+    # backward-compatible handling during migration).
+    device_secret = Column(String, nullable=True)
 
     # Kiosk mode
     kiosk_enabled = Column(Boolean, default=False)

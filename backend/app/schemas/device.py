@@ -127,10 +127,12 @@ class DeviceEnrollResponse(BaseModel):
     device_id: str
     asset_id: str | None = None
     message: str
+    device_secret: str
 
 
 class DeviceHeartbeat(BaseModel):
     device_id: str
+    device_secret: str | None = None
     battery_level: int | None = None
     storage_free: int | None = None
     storage_total: int | None = None
@@ -143,5 +145,6 @@ class DeviceHeartbeat(BaseModel):
 
 class DeviceLocationUpdate(BaseModel):
     device_id: str
+    device_secret: str | None = None
     latitude: float
     longitude: float

@@ -47,11 +47,13 @@ object CommandProcessor {
     suspend fun pollAndExecute(context: Context): Boolean {
         val prefs = context.getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
         val deviceId = prefs.getString("device_id", null) ?: return false
+        val deviceSecret = prefs.getString("device_secret", null)
 
         val storageInfo = getStorageInfo()
         val response = ApiClient.api.heartbeat(
             HeartbeatRequest(
                 device_id = deviceId,
+                device_secret = deviceSecret,
                 battery_level = getBatteryLevel(context),
                 storage_free = storageInfo.first,
                 storage_total = storageInfo.second,
@@ -88,7 +90,7 @@ object CommandProcessor {
         // Releasing tears down this very service, so acknowledge first (the server
         // deletes the device once it sees the ack) and then unbind.
         if (command.command_type == "release") {
-            acknowledge(command.id, true)
+            acknowledge(context, command.id, true)
             try {
                 MdmRemover.release(context)
             } catch (e: Exception) {
@@ -120,7 +122,7 @@ object CommandProcessor {
             success = false
         }
 
-        acknowledge(command.id, success)
+        acknowledge(context, command.id, success)
     }
 
     /**
@@ -321,11 +323,16 @@ object CommandProcessor {
         }
     }
 
-    private suspend fun acknowledge(commandId: Int, success: Boolean) {
+    private suspend fun acknowledge(context: Context, commandId: Int, success: Boolean) {
         try {
+            val prefs = context.getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
+            val deviceSecret = prefs.getString("device_secret", null)
             ApiClient.api.ackCommand(
                 commandId,
-                CommandAck(status = if (success) "executed" else "failed")
+                CommandAck(
+                    status = if (success) "executed" else "failed",
+                    device_secret = deviceSecret
+                )
             )
         } catch (e: Exception) {
             Log.e(TAG, "Failed to acknowledge command $commandId", e)

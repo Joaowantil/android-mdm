@@ -1,4 +1,5 @@
 import json
+import logging
 import secrets
 from datetime import datetime, timezone
 
@@ -26,6 +27,26 @@ from app.schemas.command import CommandAck, CommandCreate, CommandResponse
 from app.services.geocode import reverse_geocode
 
 router = APIRouter(prefix="/devices", tags=["Devices"])
+
+
+def _verify_device_secret(device: Device, provided_secret: str | None) -> None:
+    """Rejects a device-facing request that doesn't prove it's the enrolled device.
+
+    device.device_secret is None for devices enrolled before this check existed -
+    those are let through once (logged) so an existing fleet isn't locked out mid-air;
+    they become fully protected the next time they re-enroll. Any device that DOES have
+    a secret on file must present the exact matching value, compared in constant time to
+    avoid a timing side-channel.
+    """
+    if device.device_secret is None:
+        logging.getLogger("app.security").warning(
+            "Device %s has no device_secret on file (enrolled before device auth was "
+            "added) - accepting without verification. Re-enroll to close this gap.",
+            device.device_id,
+        )
+        return
+    if not provided_secret or not secrets.compare_digest(provided_secret, device.device_secret):
+        raise HTTPException(status_code=401, detail="Invalid device credentials")
 
 
 @router.get("", response_model=list[DeviceResponse])
@@ -87,6 +108,7 @@ async def enroll_device(
     device.enrolled_at = datetime.now(timezone.utc)
     device.is_online = True
     device.last_seen = datetime.now(timezone.utc)
+    device.device_secret = secrets.token_urlsafe(32)
 
     await db.flush()
     return DeviceEnrollResponse(
@@ -94,6 +116,7 @@ async def enroll_device(
         device_id=device.device_id,
         asset_id=asset_id_from_pk(device.id),
         message="Device enrolled successfully",
+        device_secret=device.device_secret,
     )
 
 
@@ -335,6 +358,8 @@ async def device_heartbeat(
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
 
+    _verify_device_secret(device, heartbeat.device_secret)
+
     device.is_online = True
     device.last_seen = datetime.now(timezone.utc)
     device.battery_level = heartbeat.battery_level
@@ -397,6 +422,16 @@ async def ack_command(
     if not command:
         raise HTTPException(status_code=404, detail="Command not found")
 
+    # Command IDs are sequential integers - trivially enumerable - so without this check
+    # anyone could mark ANY device's lock/wipe/apply_policy command as "executed" without
+    # it ever actually running on that device, silently corrupting the audit trail.
+    owner_result = await db.execute(
+        select(Device).where(Device.id == command.device_id)
+    )
+    owner = owner_result.scalar_one_or_none()
+    if owner is not None:
+        _verify_device_secret(owner, ack.device_secret)
+
     command.status = ack.status
     command.result = json.dumps(ack.result) if ack.result else None
     command.executed_at = datetime.now(timezone.utc)
@@ -426,6 +461,8 @@ async def update_location(
     device = result.scalar_one_or_none()
     if not device:
         raise HTTPException(status_code=404, detail="Device not found")
+
+    _verify_device_secret(device, location.device_secret)
 
     device.latitude = location.latitude
     device.longitude = location.longitude
