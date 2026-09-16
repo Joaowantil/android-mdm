@@ -36,10 +36,12 @@ object LocationService {
                     try {
                         val prefs = context.getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
                         val deviceId = prefs.getString("device_id", null) ?: return@launch
+                        val deviceSecret = prefs.getString("device_secret", null)
 
                         ApiClient.api.updateLocation(
                             LocationUpdate(
                                 device_id = deviceId,
+                                device_secret = deviceSecret,
                                 latitude = location.latitude,
                                 longitude = location.longitude
                             )
