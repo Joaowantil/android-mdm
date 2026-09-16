@@ -18,11 +18,13 @@ data class EnrollResponse(
     val success: Boolean,
     val device_id: String,
     val asset_id: String?,
-    val message: String
+    val message: String,
+    val device_secret: String
 )
 
 data class HeartbeatRequest(
     val device_id: String,
+    val device_secret: String?,
     val battery_level: Int?,
     val storage_free: Int?,
     val storage_total: Int?,
@@ -48,13 +50,15 @@ data class PendingCommand(
 
 data class LocationUpdate(
     val device_id: String,
+    val device_secret: String?,
     val latitude: Double,
     val longitude: Double
 )
 
 data class CommandAck(
     val status: String,
-    val result: Map<String, Any>? = null
+    val result: Map<String, Any>? = null,
+    val device_secret: String? = null
 )
 
 interface MDMApi {
