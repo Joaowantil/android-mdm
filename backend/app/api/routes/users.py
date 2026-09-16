@@ -78,8 +78,6 @@ async def change_password(
     user = result.scalar_one_or_none()
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
-    if not payload.password or len(payload.password) < 4:
-        raise HTTPException(status_code=400, detail="Senha muito curta (mínimo 4 caracteres)")
     user.hashed_password = get_password_hash(payload.password)
     await db.flush()
     return user
