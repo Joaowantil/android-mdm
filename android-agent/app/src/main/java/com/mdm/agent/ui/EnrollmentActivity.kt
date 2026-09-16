@@ -158,6 +158,7 @@ class EnrollmentActivity : AppCompatActivity() {
                             .putBoolean("enrolled", true)
                             .putString("device_id", deviceId)
                             .putString("asset_id", response.body()?.asset_id)
+                            .putString("device_secret", response.body()?.device_secret)
                             .apply()
 
                         // Start fast command polling + periodic background fallback
