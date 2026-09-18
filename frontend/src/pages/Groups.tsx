@@ -27,6 +27,7 @@ import {
 } from '@mui/material'
 import { Add, Delete, Edit, Devices as DevicesIcon } from '@mui/icons-material'
 import api from '../services/api'
+import { getErrorMessage } from '../utils/errors'
 import { Group, Device } from '../types'
 
 export default function Groups() {
@@ -76,8 +77,7 @@ export default function Groups() {
       setName('')
       loadGroups()
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } }
-      setAlert({ type: 'error', message: e.response?.data?.detail || 'Falha ao salvar grupo' })
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao salvar grupo') })
     }
   }
 
@@ -113,8 +113,7 @@ export default function Groups() {
       setAlert({ type: 'success', message: 'Grupo excluído' })
       loadGroups()
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } }
-      setAlert({ type: 'error', message: e.response?.data?.detail || 'Falha ao excluir grupo' })
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao excluir grupo') })
     }
   }
 
