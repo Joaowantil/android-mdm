@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
 from app.core.database import get_db
-from app.core.security import get_current_user
+from app.core.security import get_current_user, get_current_admin
 from app.models.device import Device
 from app.models.command import DeviceCommand
 from app.models.group import Group
@@ -237,7 +237,7 @@ async def lock_device(
     device_id: int,
     lock: DeviceLockRequest | None = None,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_admin),
 ):
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
@@ -261,7 +261,7 @@ async def lock_device(
 async def wipe_device(
     device_id: int,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_admin),
 ):
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
@@ -283,7 +283,7 @@ async def wipe_device(
 async def reboot_device(
     device_id: int,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
+    _current_user: dict = Depends(get_current_admin),
 ):
     """Reboots the device remotely. Requires Device Owner (dpm.reboot(), API 24+)."""
     result = await db.execute(select(Device).where(Device.id == device_id))
@@ -327,8 +327,19 @@ async def send_command(
     device_id: int,
     cmd: CommandCreate,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
+    # lock/wipe/reboot have their own dedicated, admin-only endpoints above. Without
+    # this check, any authenticated user (including the "operator" role) could send
+    # the exact same destructive command through this generic endpoint instead,
+    # completely bypassing the admin restriction those endpoints enforce.
+    ADMIN_ONLY_COMMANDS = {"lock", "wipe", "reboot"}
+    if cmd.command_type in ADMIN_ONLY_COMMANDS and current_user.get("role") != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"'{cmd.command_type}' requires admin privileges - use the dedicated endpoint",
+        )
+
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
     if not device:
