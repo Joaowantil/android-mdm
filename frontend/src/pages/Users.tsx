@@ -24,6 +24,7 @@ import {
 } from '@mui/material'
 import { Add, Delete, Key, Block, CheckCircle } from '@mui/icons-material'
 import api from '../services/api'
+import { getErrorMessage } from '../utils/errors'
 
 interface User {
   id: number
@@ -70,8 +71,7 @@ export default function Users() {
       setForm({ email: '', password: '', full_name: '', role: 'operator' })
       loadUsers()
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } }
-      setAlert({ type: 'error', message: e.response?.data?.detail || 'Falha ao criar usuário' })
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao criar usuário') })
     }
   }
 
@@ -83,8 +83,7 @@ export default function Users() {
       setPwdTarget(null)
       setNewPassword('')
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } }
-      setAlert({ type: 'error', message: e.response?.data?.detail || 'Falha ao alterar senha' })
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao alterar senha') })
     }
   }
 
@@ -94,8 +93,7 @@ export default function Users() {
       setAlert({ type: 'success', message: `Usuário ${!user.is_active ? 'ativado' : 'desativado'}` })
       loadUsers()
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } }
-      setAlert({ type: 'error', message: e.response?.data?.detail || 'Falha ao atualizar usuário' })
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao atualizar usuário') })
     }
   }
 
@@ -106,8 +104,7 @@ export default function Users() {
       setAlert({ type: 'success', message: 'Usuário excluído' })
       loadUsers()
     } catch (err: unknown) {
-      const e = err as { response?: { data?: { detail?: string } } }
-      setAlert({ type: 'error', message: e.response?.data?.detail || 'Falha ao excluir usuário' })
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao excluir usuário') })
     }
   }
 
