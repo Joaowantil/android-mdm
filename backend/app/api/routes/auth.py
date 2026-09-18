@@ -13,14 +13,22 @@ router = APIRouter(prefix="/auth", tags=["Authentication"])
 
 @router.post("/login", response_model=LoginResponse)
 async def login(request: LoginRequest, http_request: Request, db: AsyncSession = Depends(get_db)):
+    # Must match the exact normalization create_user() applies (email.strip().lower())
+    # - without this, an email saved as "joao@empresa.com" (lowercased on creation)
+    # never matches a case-sensitive lookup for "Joao@empresa.com" typed at login,
+    # even with the correct password. SQLite string comparison is case-sensitive by
+    # default, so this was a real, silent lockout for any email not typed in the
+    # exact casing it happened to be created with.
+    email = request.email.strip().lower()
+
     client_ip = http_request.client.host if http_request.client else "unknown"
     # Keyed by IP + email: one bad actor guessing many emails from one IP is capped,
     # and repeated bad guesses against a single account are capped even from
     # different IPs wouldn't be - this is deliberately the simple, cheap version.
-    rate_key = f"login:{client_ip}:{request.email.lower()}"
+    rate_key = f"login:{client_ip}:{email}"
     check_rate_limit(rate_key)
 
-    result = await db.execute(select(User).where(User.email == request.email))
+    result = await db.execute(select(User).where(User.email == email))
     user = result.scalar_one_or_none()
 
     if not user or not verify_password(request.password, user.hashed_password):
