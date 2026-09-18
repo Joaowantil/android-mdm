@@ -11,6 +11,7 @@ import {
 } from '@mui/material'
 import { PhoneAndroid as PhoneIcon } from '@mui/icons-material'
 import api from '../services/api'
+import { getErrorMessage } from '../utils/errors'
 
 interface LoginProps {
   onLogin: (token: string) => void
@@ -33,8 +34,7 @@ export default function Login({ onLogin }: LoginProps) {
       localStorage.setItem('mdm_email', response.data.user_email)
       onLogin(response.data.access_token)
     } catch (err: unknown) {
-      const axiosError = err as { response?: { data?: { detail?: string } } }
-      setError(axiosError.response?.data?.detail || 'Erro ao fazer login')
+      setError(getErrorMessage(err, 'Erro ao fazer login'))
     } finally {
       setLoading(false)
     }
