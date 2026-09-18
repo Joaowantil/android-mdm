@@ -1,7 +1,7 @@
 from datetime import datetime, timedelta, timezone
 
-from jose import JWTError, jwt
-from passlib.context import CryptContext
+import bcrypt
+import jwt
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -10,16 +10,33 @@ from sqlalchemy import select
 from app.core.config import settings
 from app.core.database import get_db
 
-pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/auth/login")
 
 
 def verify_password(plain_password: str, hashed_password: str) -> bool:
-    return pwd_context.verify(plain_password, hashed_password)
+    # bcrypt's own hashpw/checkpw, not passlib's CryptContext wrapper around it.
+    # passlib hasn't had a release since 2020 and breaks outright on bcrypt>=4.1 (a
+    # known, unresolved compatibility bug) - this project only worked because bcrypt
+    # was pinned to the exact old 4.0.1 release to dodge it, a landmine that any
+    # future dependency bump could silently step on and break every login. Calling
+    # bcrypt directly removes that whole failure class. The hash FORMAT bcrypt
+    # produces is unchanged, so existing password hashes already in the database
+    # keep working with no migration needed.
+    try:
+        return bcrypt.checkpw(
+            plain_password.encode("utf-8")[:72], hashed_password.encode("utf-8")
+        )
+    except (ValueError, TypeError):
+        return False
 
 
 def get_password_hash(password: str) -> str:
-    return pwd_context.hash(password)
+    # bcrypt only ever looks at the first 72 bytes of the input and raises ValueError
+    # on anything longer, rather than silently truncating - so it's truncated
+    # explicitly here to keep behavior predictable instead of the endpoint blowing up
+    # on a long password.
+    password_bytes = password.encode("utf-8")[:72]
+    return bcrypt.hashpw(password_bytes, bcrypt.gensalt()).decode("utf-8")
 
 
 def create_access_token(data: dict, expires_delta: timedelta | None = None) -> str:
@@ -33,9 +50,12 @@ def create_access_token(data: dict, expires_delta: timedelta | None = None) -> s
 
 def decode_token(token: str) -> dict:
     try:
+        # algorithms is a list with a single, explicit entry on purpose: this is what
+        # stops an "alg=none" or algorithm-confusion token from being accepted - the
+        # library is told exactly which one algorithm is valid, nothing else.
         payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.ALGORITHM])
         return payload
-    except JWTError:
+    except jwt.PyJWTError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid token",
