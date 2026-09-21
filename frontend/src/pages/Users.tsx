@@ -22,7 +22,7 @@ import {
   Alert,
   Tooltip,
 } from '@mui/material'
-import { Add, Delete, Key, Block, CheckCircle } from '@mui/icons-material'
+import { Add, Delete, Key, Block, CheckCircle, Edit } from '@mui/icons-material'
 import api from '../services/api'
 import { getErrorMessage } from '../utils/errors'
 
@@ -47,6 +47,8 @@ export default function Users() {
   const [form, setForm] = useState({ email: '', password: '', full_name: '', role: 'operator' })
   const [pwdTarget, setPwdTarget] = useState<User | null>(null)
   const [newPassword, setNewPassword] = useState('')
+  const [editTarget, setEditTarget] = useState<User | null>(null)
+  const [editForm, setEditForm] = useState({ email: '', full_name: '', role: 'operator' })
 
   const currentEmail = localStorage.getItem('mdm_email')
 
@@ -84,6 +86,27 @@ export default function Users() {
       setNewPassword('')
     } catch (err: unknown) {
       setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao alterar senha') })
+    }
+  }
+
+  const openEdit = (user: User) => {
+    setEditTarget(user)
+    setEditForm({ email: user.email, full_name: user.full_name || '', role: user.role })
+  }
+
+  const updateUser = async () => {
+    if (!editTarget) return
+    try {
+      await api.put(`/users/${editTarget.id}`, {
+        email: editForm.email,
+        full_name: editForm.full_name,
+        role: editForm.role,
+      })
+      setAlert({ type: 'success', message: 'Usuário atualizado com sucesso' })
+      setEditTarget(null)
+      loadUsers()
+    } catch (err: unknown) {
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao atualizar usuário') })
     }
   }
 
@@ -173,6 +196,11 @@ export default function Users() {
                         />
                       </TableCell>
                       <TableCell>
+                        <Tooltip title="Editar">
+                          <IconButton size="small" onClick={() => openEdit(user)}>
+                            <Edit />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Alterar senha">
                           <IconButton size="small" onClick={() => { setPwdTarget(user); setNewPassword('') }}>
                             <Key />
@@ -229,6 +257,7 @@ export default function Users() {
             onChange={(e) => setForm({ ...form, password: e.target.value })}
             margin="normal"
             required
+            helperText="Mínimo 8 caracteres"
           />
           <TextField
             fullWidth
@@ -250,9 +279,57 @@ export default function Users() {
           <Button
             variant="contained"
             onClick={createUser}
-            disabled={!form.email || form.password.length < 4}
+            disabled={!form.email || form.password.length < 8}
           >
             Criar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!editTarget} onClose={() => setEditTarget(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Editar usuário</DialogTitle>
+        <DialogContent>
+          <TextField
+            fullWidth
+            label="Email"
+            type="email"
+            value={editForm.email}
+            onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+            margin="normal"
+            required
+          />
+          <TextField
+            fullWidth
+            label="Nome"
+            value={editForm.full_name}
+            onChange={(e) => setEditForm({ ...editForm, full_name: e.target.value })}
+            margin="normal"
+          />
+          <TextField
+            fullWidth
+            select
+            label="Papel"
+            value={editForm.role}
+            onChange={(e) => setEditForm({ ...editForm, role: e.target.value })}
+            margin="normal"
+            disabled={editTarget?.email === currentEmail}
+            helperText={
+              editTarget?.email === currentEmail
+                ? 'Não é possível alterar seu próprio papel'
+                : undefined
+            }
+          >
+            {ROLES.map((r) => (
+              <MenuItem key={r.value} value={r.value}>
+                {r.label}
+              </MenuItem>
+            ))}
+          </TextField>
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setEditTarget(null)}>Cancelar</Button>
+          <Button variant="contained" onClick={updateUser} disabled={!editForm.email}>
+            Salvar
           </Button>
         </DialogActions>
       </Dialog>
@@ -268,11 +345,12 @@ export default function Users() {
             onChange={(e) => setNewPassword(e.target.value)}
             margin="normal"
             required
+            helperText="Mínimo 8 caracteres"
           />
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setPwdTarget(null)}>Cancelar</Button>
-          <Button variant="contained" onClick={changePassword} disabled={newPassword.length < 4}>
+          <Button variant="contained" onClick={changePassword} disabled={newPassword.length < 8}>
             Salvar
           </Button>
         </DialogActions>
