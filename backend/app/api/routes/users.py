@@ -42,6 +42,9 @@ async def create_user(
     return user
 
 
+ALLOWED_ROLES = {"admin", "operator"}
+
+
 @router.put("/{user_id}", response_model=UserResponse)
 async def update_user(
     user_id: int,
@@ -54,12 +57,40 @@ async def update_user(
     if not user:
         raise HTTPException(status_code=404, detail="Usuário não encontrado")
 
+    is_self = user.email == admin["email"]
+
+    if payload.email is not None:
+        new_email = payload.email.strip().lower()
+        if not new_email:
+            raise HTTPException(status_code=400, detail="Email não pode ser vazio")
+        if new_email != user.email:
+            existing = await db.execute(
+                select(User).where(User.email == new_email, User.id != user_id)
+            )
+            if existing.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail="Email já cadastrado")
+            user.email = new_email
+
     if payload.full_name is not None:
         user.full_name = payload.full_name
+
     if payload.role is not None:
+        if payload.role not in ALLOWED_ROLES:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Papel inválido. Use um de: {', '.join(sorted(ALLOWED_ROLES))}",
+            )
+        # Same idea as the "can't deactivate yourself" guard below: without this, an
+        # admin editing their own account could accidentally demote themselves to
+        # operator and lose the ability to undo it (or promote anyone else back).
+        if is_self and payload.role != "admin":
+            raise HTTPException(
+                status_code=400, detail="Não é possível rebaixar a si mesmo"
+            )
         user.role = payload.role
+
     if payload.is_active is not None:
-        if user.email == admin["email"] and payload.is_active is False:
+        if is_self and payload.is_active is False:
             raise HTTPException(status_code=400, detail="Não é possível desativar a si mesmo")
         user.is_active = payload.is_active
 
