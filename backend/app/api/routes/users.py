@@ -9,6 +9,8 @@ from app.schemas.user import UserResponse, UserCreate, UserUpdate, PasswordChang
 
 router = APIRouter(prefix="/users", tags=["Users"])
 
+ALLOWED_ROLES = {"admin", "operator"}
+
 
 @router.get("", response_model=list[UserResponse])
 async def list_users(
@@ -30,19 +32,23 @@ async def create_user(
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Email já cadastrado")
 
+    role = payload.role or "operator"
+    if role not in ALLOWED_ROLES:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Papel inválido. Use um de: {', '.join(sorted(ALLOWED_ROLES))}",
+        )
+
     user = User(
         email=email,
         hashed_password=get_password_hash(payload.password),
         full_name=payload.full_name,
-        role=payload.role or "operator",
+        role=role,
         is_active=True,
     )
     db.add(user)
     await db.flush()
     return user
-
-
-ALLOWED_ROLES = {"admin", "operator"}
 
 
 @router.put("/{user_id}", response_model=UserResponse)

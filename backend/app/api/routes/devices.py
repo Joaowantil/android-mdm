@@ -1,7 +1,7 @@
 import json
 import logging
 import secrets
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -95,6 +95,22 @@ async def enroll_device(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Device already enrolled",
+        )
+
+    # An enrollment QR code/link has no natural expiry otherwise - if one is ever
+    # exposed (a photo of a poster, an old email, a screenshot) it would stay valid
+    # forever, letting an unauthorized device enroll into the fleet months later.
+    ENROLLMENT_TOKEN_TTL = timedelta(hours=24)
+    created_at = device.created_at
+    if created_at.tzinfo is None:
+        # SQLite hands back naive datetimes even for a DateTime(timezone=True)
+        # column - same pattern already used for last_seen/enrolled_at elsewhere.
+        created_at = created_at.replace(tzinfo=timezone.utc)
+    token_age = datetime.now(timezone.utc) - created_at
+    if token_age > ENROLLMENT_TOKEN_TTL:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Enrollment token expired - generate a new one",
         )
 
     device.device_id = request.device_id
