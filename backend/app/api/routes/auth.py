@@ -7,6 +7,7 @@ from app.core.security import verify_password, create_access_token, get_current_
 from app.core.rate_limit import check_rate_limit, record_failure, reset
 from app.models.user import User
 from app.schemas.auth import LoginRequest, LoginResponse
+from app.services.audit import log_action
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -20,8 +21,8 @@ async def login(request: LoginRequest, http_request: Request, db: AsyncSession =
     # default, so this was a real, silent lockout for any email not typed in the
     # exact casing it happened to be created with.
     email = request.email.strip().lower()
-
     client_ip = http_request.client.host if http_request.client else "unknown"
+
     # Keyed by IP + email: one bad actor guessing many emails from one IP is capped,
     # and repeated bad guesses against a single account are capped even from
     # different IPs wouldn't be - this is deliberately the simple, cheap version.
@@ -33,12 +34,31 @@ async def login(request: LoginRequest, http_request: Request, db: AsyncSession =
 
     if not user or not verify_password(request.password, user.hashed_password):
         record_failure(rate_key)
+        await log_action(
+            db,
+            actor=None,
+            action="auth.login_failed",
+            target_type="user",
+            details=f"Tentativa de login falhou para {email}",
+            ip_address=client_ip,
+        )
+        await db.flush()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
 
     if not user.is_active:
+        await log_action(
+            db,
+            actor={"email": user.email, "role": user.role},
+            action="auth.login_blocked",
+            target_type="user",
+            target_id=user.id,
+            details="Login recusado: conta desativada",
+            ip_address=client_ip,
+        )
+        await db.flush()
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled",
@@ -46,6 +66,16 @@ async def login(request: LoginRequest, http_request: Request, db: AsyncSession =
 
     reset(rate_key)
     token = create_access_token(data={"sub": user.email, "role": user.role})
+    await log_action(
+        db,
+        actor={"email": user.email, "role": user.role},
+        action="auth.login",
+        target_type="user",
+        target_id=user.id,
+        details=f"Login bem-sucedido de {user.email}",
+        ip_address=client_ip,
+    )
+    await db.flush()
     return LoginResponse(
         access_token=token,
         user_email=user.email,
