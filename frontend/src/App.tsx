@@ -7,6 +7,7 @@ import DeviceDetail from './pages/DeviceDetail'
 import Policies from './pages/Policies'
 import Groups from './pages/Groups'
 import Users from './pages/Users'
+import AuditLogPage from './pages/AuditLog'
 import Layout from './components/Layout'
 
 function App() {
@@ -35,6 +36,7 @@ function App() {
         <Route path="/policies" element={<Policies />} />
         <Route path="/groups" element={<Groups />} />
         <Route path="/users" element={<Users />} />
+        <Route path="/audit-log" element={<AuditLogPage />} />
         <Route path="*" element={<Navigate to="/" />} />
       </Routes>
     </Layout>
