@@ -3,7 +3,7 @@ import logging
 import secrets
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -12,6 +12,7 @@ from app.core.security import get_current_user, get_current_admin
 from app.models.device import Device
 from app.models.command import DeviceCommand
 from app.models.group import Group
+from app.services.audit import log_action
 from app.schemas.device import (
     ONLINE_THRESHOLD_SECONDS,
     DeviceResponse,
@@ -251,9 +252,10 @@ async def delete_device(
 @router.post("/{device_id}/lock", response_model=CommandResponse)
 async def lock_device(
     device_id: int,
+    http_request: Request,
     lock: DeviceLockRequest | None = None,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_admin),
+    current_user: dict = Depends(get_current_admin),
 ):
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
@@ -270,14 +272,25 @@ async def lock_device(
     db.add(command)
     device.status = "locked"
     await db.flush()
+    await log_action(
+        db,
+        actor=current_user,
+        action="device.lock",
+        target_type="device",
+        target_id=device.device_id,
+        details=f"Bloqueou o device {device.device_id}",
+        ip_address=http_request.client.host if http_request.client else None,
+    )
+    await db.flush()
     return command
 
 
 @router.post("/{device_id}/wipe", response_model=CommandResponse)
 async def wipe_device(
     device_id: int,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_admin),
+    current_user: dict = Depends(get_current_admin),
 ):
     result = await db.execute(select(Device).where(Device.id == device_id))
     device = result.scalar_one_or_none()
@@ -292,14 +305,25 @@ async def wipe_device(
     db.add(command)
     device.status = "wiped"
     await db.flush()
+    await log_action(
+        db,
+        actor=current_user,
+        action="device.wipe",
+        target_type="device",
+        target_id=device.device_id,
+        details=f"Apagou (wipe) o device {device.device_id} (model: {device.model})",
+        ip_address=http_request.client.host if http_request.client else None,
+    )
+    await db.flush()
     return command
 
 
 @router.post("/{device_id}/reboot", response_model=CommandResponse)
 async def reboot_device(
     device_id: int,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_admin),
+    current_user: dict = Depends(get_current_admin),
 ):
     """Reboots the device remotely. Requires Device Owner (dpm.reboot(), API 24+)."""
     result = await db.execute(select(Device).where(Device.id == device_id))
@@ -313,6 +337,16 @@ async def reboot_device(
         status="pending",
     )
     db.add(command)
+    await db.flush()
+    await log_action(
+        db,
+        actor=current_user,
+        action="device.reboot",
+        target_type="device",
+        target_id=device.device_id,
+        details=f"Reiniciou o device {device.device_id}",
+        ip_address=http_request.client.host if http_request.client else None,
+    )
     await db.flush()
     return command
 
@@ -342,6 +376,7 @@ async def locate_device(
 async def send_command(
     device_id: int,
     cmd: CommandCreate,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
     current_user: dict = Depends(get_current_user),
 ):
@@ -368,6 +403,16 @@ async def send_command(
         status="pending",
     )
     db.add(command)
+    await db.flush()
+    await log_action(
+        db,
+        actor=current_user,
+        action=f"device.command.{cmd.command_type}",
+        target_type="device",
+        target_id=device.device_id,
+        details=f"Comando '{cmd.command_type}' enviado ao device {device.device_id}",
+        ip_address=http_request.client.host if http_request.client else None,
+    )
     await db.flush()
     return command
 
