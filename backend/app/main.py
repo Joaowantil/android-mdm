@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db, async_session
-from app.api.routes import auth, devices, policies, users, groups
+from app.api.routes import auth, devices, policies, users, groups, audit
 from app.services.seed import seed_admin
 
 logger = logging.getLogger("app.startup")
@@ -59,12 +59,31 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+@app.middleware("http")
+async def security_headers(request, call_next):
+    # Basic browser-level hardening, cheap to add and normally expected of a
+    # corporate web app. X-Frame-Options stops the panel being embedded in a
+    # hidden <iframe> on another site (clickjacking); X-Content-Type-Options
+    # stops the browser from guessing content types in a way that can enable
+    # some XSS vectors; Referrer-Policy avoids leaking full URLs (which can
+    # contain tokens in query strings) to third-party sites via the Referer
+    # header. HSTS is included for when this moves to HTTPS - it's a no-op
+    # over plain HTTP, browsers only honor it on secure responses.
+    response = await call_next(request)
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+    return response
+
 # Routes
 app.include_router(auth.router, prefix="/api")
 app.include_router(devices.router, prefix="/api")
 app.include_router(policies.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(groups.router, prefix="/api")
+app.include_router(audit.router, prefix="/api")
 
 
 @app.get("/")

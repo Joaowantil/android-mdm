@@ -21,6 +21,7 @@ import {
   Policy as PolicyIcon,
   Workspaces as GroupsIcon,
   People as PeopleIcon,
+  History as AuditIcon,
   Logout as LogoutIcon,
 } from '@mui/icons-material'
 
@@ -32,6 +33,7 @@ const menuItems = [
   { text: 'Políticas', icon: <PolicyIcon />, path: '/policies' },
   { text: 'Grupos', icon: <GroupsIcon />, path: '/groups' },
   { text: 'Usuários', icon: <PeopleIcon />, path: '/users', adminOnly: true },
+  { text: 'Log de auditoria', icon: <AuditIcon />, path: '/audit-log', adminOnly: true },
 ]
 
 interface LayoutProps {
