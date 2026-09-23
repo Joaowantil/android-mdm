@@ -1,6 +1,6 @@
 import json
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Request
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
@@ -9,6 +9,7 @@ from app.core.security import get_current_user
 from app.models.policy import Policy, PolicyAssignment
 from app.models.device import Device
 from app.models.command import DeviceCommand
+from app.services.audit import log_action
 from app.schemas.policy import (
     PolicyCreate,
     PolicyUpdate,
@@ -122,8 +123,9 @@ async def list_policies(
 @router.post("", response_model=PolicyResponse)
 async def create_policy(
     policy: PolicyCreate,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     db_policy = Policy(
         name=policy.name,
@@ -150,6 +152,16 @@ async def create_policy(
     db.add(db_policy)
     await db.flush()
     await db.refresh(db_policy)
+    await log_action(
+        db,
+        actor=current_user,
+        action="policy.create",
+        target_type="policy",
+        target_id=db_policy.id,
+        details=f"Criou política '{db_policy.name}' (tipo: {db_policy.policy_type})",
+        ip_address=http_request.client.host if http_request.client else None,
+    )
+    await db.flush()
     return _policy_to_response(db_policy)
 
 
@@ -170,8 +182,9 @@ async def get_policy(
 async def update_policy(
     policy_id: int,
     update: PolicyUpdate,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     result = await db.execute(select(Policy).where(Policy.id == policy_id))
     policy = result.scalar_one_or_none()
@@ -179,6 +192,9 @@ async def update_policy(
         raise HTTPException(status_code=404, detail="Policy not found")
 
     update_data = update.model_dump(exclude_unset=True)
+    changed_fields = [k for k in update_data.keys() if k != "kiosk_pin"]
+    if "kiosk_pin" in update_data:
+        changed_fields.append("kiosk_pin")  # never log the PIN value itself
     for key, value in update_data.items():
         if key in ("app_list", "kiosk_apps", "kiosk_web_links") and value is not None:
             setattr(policy, key, json.dumps(value))
@@ -193,6 +209,17 @@ async def update_policy(
     elif policy.policy_type in ("app_allowlist", "app_blocklist"):
         await _push_app_policy_to_assigned(db, policy)
     await db.flush()
+    if changed_fields:
+        await log_action(
+            db,
+            actor=current_user,
+            action="policy.update",
+            target_type="policy",
+            target_id=policy.id,
+            details=f"Editou política '{policy.name}': {', '.join(changed_fields)}",
+            ip_address=http_request.client.host if http_request.client else None,
+        )
+        await db.flush()
     await db.refresh(policy)
     return _policy_to_response(policy)
 
@@ -200,13 +227,16 @@ async def update_policy(
 @router.delete("/{policy_id}")
 async def delete_policy(
     policy_id: int,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     result = await db.execute(select(Policy).where(Policy.id == policy_id))
     policy = result.scalar_one_or_none()
     if not policy:
         raise HTTPException(status_code=404, detail="Policy not found")
+    policy_name = policy.name
+    policy_id_for_log = policy.id
 
     # Deleting a policy must tear down whatever it applied on-device, the same
     # way unassigning a device from it does - otherwise devices are left
@@ -246,6 +276,15 @@ async def delete_policy(
             ))
         await db.delete(row)
 
+    await log_action(
+        db,
+        actor=current_user,
+        action="policy.delete",
+        target_type="policy",
+        target_id=policy_id_for_log,
+        details=f"Excluiu política '{policy_name}'",
+        ip_address=http_request.client.host if http_request.client else None,
+    )
     await db.delete(policy)
     await db.flush()
     return {"message": "Policy deleted"}
@@ -269,8 +308,9 @@ async def get_policy_assignments(
 async def assign_policy(
     policy_id: int,
     request: PolicyAssignRequest,
+    http_request: Request,
     db: AsyncSession = Depends(get_db),
-    _current_user: dict = Depends(get_current_user),
+    current_user: dict = Depends(get_current_user),
 ):
     result = await db.execute(select(Policy).where(Policy.id == policy_id))
     policy = result.scalar_one_or_none()
@@ -420,5 +460,14 @@ async def assign_policy(
             ))
         assigned_count += 1
 
+    await log_action(
+        db,
+        actor=current_user,
+        action="policy.assign",
+        target_type="policy",
+        target_id=policy_id,
+        details=f"Atribuiu política '{policy.name}' a {assigned_count} dispositivo(s)",
+        ip_address=http_request.client.host if http_request.client else None,
+    )
     await db.flush()
     return {"message": f"Policy assigned to {assigned_count} device(s)"}
