@@ -25,6 +25,7 @@ import {
   FormControl,
   InputLabel,
   Stack,
+  TextField,
 } from '@mui/material'
 import { SelectChangeEvent } from '@mui/material/Select'
 import {
@@ -35,11 +36,13 @@ import {
   ContentCopy,
   Visibility,
   RestartAlt,
+  Message,
 } from '@mui/icons-material'
 import { QRCodeCanvas } from 'qrcode.react'
 import api from '../services/api'
 import { Device, Group } from '../types'
 import { lastOnlineText } from '../utils/time'
+import { getErrorMessage } from '../utils/errors'
 
 export default function Devices() {
   const [devices, setDevices] = useState<Device[]>([])
@@ -177,6 +180,21 @@ export default function Devices() {
       setAlert({ type: 'success', message: 'Solicitação de localização enviada' })
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao localizar dispositivo' })
+    }
+  }
+
+  const [messageTarget, setMessageTarget] = useState<Device | null>(null)
+  const [messageForm, setMessageForm] = useState({ title: 'Aviso', message: '' })
+
+  const sendMessage = async () => {
+    if (!messageTarget) return
+    try {
+      await api.post(`/devices/${messageTarget.id}/message`, messageForm)
+      setAlert({ type: 'success', message: 'Mensagem enviada ao dispositivo' })
+      setMessageTarget(null)
+      setMessageForm({ title: 'Aviso', message: '' })
+    } catch (err: unknown) {
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao enviar mensagem') })
     }
   }
 
@@ -421,6 +439,17 @@ export default function Devices() {
                             <LocationOn />
                           </IconButton>
                         </Tooltip>
+                        <Tooltip title="Enviar mensagem">
+                          <IconButton
+                            size="small"
+                            onClick={() => {
+                              setMessageTarget(device)
+                              setMessageForm({ title: 'Aviso', message: '' })
+                            }}
+                          >
+                            <Message />
+                          </IconButton>
+                        </Tooltip>
                         <Tooltip title="Remover">
                           <IconButton
                             size="small"
@@ -478,6 +507,42 @@ export default function Devices() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEnrollDialog(false)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={!!messageTarget} onClose={() => setMessageTarget(null)} maxWidth="sm" fullWidth>
+        <DialogTitle>Enviar mensagem — {messageTarget?.asset_id || messageTarget?.device_id}</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            A mensagem aparece como um pop-up na tela do dispositivo, mesmo
+            se ele estiver em modo kiosk.
+          </Typography>
+          <TextField
+            fullWidth
+            label="Título"
+            value={messageForm.title}
+            onChange={(e) => setMessageForm({ ...messageForm, title: e.target.value })}
+            margin="normal"
+            inputProps={{ maxLength: 100 }}
+          />
+          <TextField
+            fullWidth
+            label="Mensagem"
+            value={messageForm.message}
+            onChange={(e) => setMessageForm({ ...messageForm, message: e.target.value })}
+            margin="normal"
+            multiline
+            rows={3}
+            required
+            inputProps={{ maxLength: 500 }}
+            helperText={`${messageForm.message.length}/500`}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMessageTarget(null)}>Cancelar</Button>
+          <Button variant="contained" onClick={sendMessage} disabled={!messageForm.message.trim()}>
+            Enviar
+          </Button>
         </DialogActions>
       </Dialog>
     </Box>
