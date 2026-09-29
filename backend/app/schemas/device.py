@@ -1,7 +1,7 @@
 import json
 from datetime import datetime, timezone
 
-from pydantic import BaseModel, field_serializer, field_validator, model_validator
+from pydantic import BaseModel, Field, field_serializer, field_validator, model_validator
 
 # A device is considered offline if its last heartbeat is older than this. The
 # agent heartbeats every ~15s, so this tolerates a few missed beats.
@@ -33,6 +33,11 @@ class DeviceUpdate(BaseModel):
 
 class DeviceLockRequest(BaseModel):
     pin: str | None = None
+
+
+class DeviceMessageRequest(BaseModel):
+    title: str = Field(default="Aviso", max_length=100)
+    message: str = Field(min_length=1, max_length=500)
 
 
 def asset_id_from_pk(pk: int) -> str:
