@@ -22,6 +22,7 @@ from app.schemas.device import (
     DeviceHeartbeat,
     DeviceLocationUpdate,
     DeviceLockRequest,
+    DeviceMessageRequest,
     asset_id_from_pk,
 )
 from app.schemas.command import CommandAck, CommandCreate, CommandResponse
@@ -345,6 +346,43 @@ async def reboot_device(
         target_type="device",
         target_id=device.device_id,
         details=f"Reiniciou o device {device.device_id}",
+        ip_address=http_request.client.host if http_request.client else None,
+    )
+    await db.flush()
+    return command
+
+
+@router.post("/{device_id}/message", response_model=CommandResponse)
+async def send_message(
+    device_id: int,
+    payload: DeviceMessageRequest,
+    http_request: Request,
+    db: AsyncSession = Depends(get_db),
+    current_user: dict = Depends(get_current_user),
+):
+    """Shows a popup with a title/message on the device screen. Not destructive, so
+    (unlike lock/wipe/reboot) any authenticated user can send one, same level as
+    locate/apply_policy."""
+    result = await db.execute(select(Device).where(Device.id == device_id))
+    device = result.scalar_one_or_none()
+    if not device:
+        raise HTTPException(status_code=404, detail="Device not found")
+
+    command = DeviceCommand(
+        device_id=device_id,
+        command_type="show_message",
+        payload=json.dumps({"title": payload.title, "message": payload.message}),
+        status="pending",
+    )
+    db.add(command)
+    await db.flush()
+    await log_action(
+        db,
+        actor=current_user,
+        action="device.message",
+        target_type="device",
+        target_id=device.device_id,
+        details=f"Enviou mensagem ao device {device.device_id}: \"{payload.title}\" - {payload.message[:80]}",
         ip_address=http_request.client.host if http_request.client else None,
     )
     await db.flush()
