@@ -111,6 +111,16 @@ object CommandProcessor {
                 "clear_web_cache" -> clearWebCache(context)
                 "set_kiosk" -> setKiosk(context, command.payload)
                 "apply_policy" -> applyPolicy(context, dpm, adminComponent, command.payload)
+                "show_message" -> {
+                    val title = command.payload?.get("title") as? String ?: "Aviso"
+                    val message = command.payload?.get("message") as? String ?: ""
+                    // WindowManager/View calls must happen on the main thread - this command
+                    // is processed from a background (Dispatchers.IO) coroutine, same reason
+                    // clearWebCache() below posts to the main looper for its WebView calls.
+                    Handler(Looper.getMainLooper()).post {
+                        MessagePopupOverlay.show(context, title, message)
+                    }
+                }
                 "reboot" -> dpm.reboot(adminComponent) // Device Owner only, requires API 24+
                 else -> {
                     Log.w(TAG, "Unknown command type: ${command.command_type}")
