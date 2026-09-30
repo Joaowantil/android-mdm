@@ -170,6 +170,10 @@ async def update_device(
     if "group_id" in update.model_fields_set:
         device.group_id = update.group_id
 
+    # notes is settable to a value or explicitly to null (clear it).
+    if "notes" in update.model_fields_set:
+        device.notes = (update.notes or "").strip() or None
+
     kiosk_changed = False
     # The PIN is kept on the device record so the dashboard can show the one in
     # force (operators forget it) and so re-enabling the kiosk resends it.
