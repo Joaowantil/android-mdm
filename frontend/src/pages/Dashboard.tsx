@@ -19,9 +19,16 @@ import {
   Cancel,
   Lock,
   Warning,
+  BatteryAlert,
+  WifiOff,
 } from '@mui/icons-material'
 import api from '../services/api'
 import { Device } from '../types'
+
+// Thresholds for the "needs attention" card. Kept as named constants so they're easy to
+// tune later without hunting through the JSX.
+const LOW_BATTERY_THRESHOLD = 15 // percent
+const LONG_OFFLINE_HOURS = 1
 
 export default function Dashboard() {
   const [devices, setDevices] = useState<Device[]>([])
@@ -47,6 +54,22 @@ export default function Dashboard() {
     locked: devices.filter((d) => d.status === 'locked').length,
     pending: devices.filter((d) => d.status === 'pending').length,
   }
+
+  // Only devices that have actually enrolled can be "low on battery" or "offline too
+  // long" - a pending device has never reported anything, and a wiped device is
+  // expected to be offline, so neither should ever show up as an alert.
+  const activeDevices = devices.filter((d) => d.status !== 'pending' && d.status !== 'wiped')
+
+  const lowBattery = activeDevices.filter(
+    (d) => d.battery_level != null && d.battery_level <= LOW_BATTERY_THRESHOLD
+  )
+
+  const longOffline = activeDevices.filter((d) => {
+    if (d.is_online || !d.last_seen) return false
+    const lastSeen = new Date(d.last_seen).getTime()
+    const hoursOffline = (Date.now() - lastSeen) / (1000 * 60 * 60)
+    return hoursOffline >= LONG_OFFLINE_HOURS
+  })
 
   const statCards = [
     { label: 'Total de Dispositivos', value: stats.total, icon: <PhoneAndroid />, color: '#1976d2', to: '/devices' },
@@ -82,6 +105,50 @@ export default function Dashboard() {
           </Grid>
         ))}
       </Grid>
+
+      {(lowBattery.length > 0 || longOffline.length > 0) && (
+        <Card sx={{ mb: 3, borderLeft: '4px solid #ed6c02' }}>
+          <CardContent>
+            <Typography variant="h6" gutterBottom>
+              Atenção necessária
+            </Typography>
+            <List dense>
+              {lowBattery.map((device) => (
+                <ListItem
+                  key={`bat-${device.id}`}
+                  button
+                  onClick={() => navigate(`/devices/${device.id}`)}
+                >
+                  <ListItemIcon>
+                    <BatteryAlert color="error" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={device.name || device.asset_id || device.device_id.slice(0, 12)}
+                    secondary={`Bateria em ${device.battery_level}%`}
+                  />
+                </ListItem>
+              ))}
+              {longOffline.map((device) => (
+                <ListItem
+                  key={`off-${device.id}`}
+                  button
+                  onClick={() => navigate(`/devices/${device.id}`)}
+                >
+                  <ListItemIcon>
+                    <WifiOff color="warning" />
+                  </ListItemIcon>
+                  <ListItemText
+                    primary={device.name || device.asset_id || device.device_id.slice(0, 12)}
+                    secondary={`Offline há mais de ${LONG_OFFLINE_HOURS}h (última vez: ${
+                      device.last_seen ? new Date(device.last_seen).toLocaleString('pt-BR') : 'nunca'
+                    })`}
+                  />
+                </ListItem>
+              ))}
+            </List>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent>
