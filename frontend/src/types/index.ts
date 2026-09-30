@@ -13,6 +13,7 @@ export interface Device {
   wifi_ssid: string | null
   ip_address: string | null
   group_id: number | null
+  notes: string | null
   latitude: number | null
   longitude: number | null
   location_address: string | null

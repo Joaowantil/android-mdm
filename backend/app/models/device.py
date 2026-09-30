@@ -51,6 +51,10 @@ class Device(Base):
     # FCM
     fcm_token = Column(String, nullable=True)
 
+    # Free-text notes for support/maintenance history - "trocou tela em 12/03",
+    # "usado pelo turno da noite", etc. Never touched by any policy/command logic.
+    notes = Column(Text, nullable=True)
+
     # Metadata
     battery_level = Column(Integer, nullable=True)
     storage_free = Column(Integer, nullable=True)  # MB

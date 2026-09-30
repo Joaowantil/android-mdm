@@ -29,6 +29,7 @@ class DeviceUpdate(BaseModel):
     kiosk_web_links: list[KioskWebLink] | None = None
     kiosk_pin: str | None = None
     group_id: int | None = None
+    notes: str | None = Field(default=None, max_length=2000)
 
 
 class DeviceLockRequest(BaseModel):
@@ -60,6 +61,7 @@ class DeviceResponse(BaseModel):
     wifi_ssid: str | None = None
     ip_address: str | None = None
     group_id: int | None = None
+    notes: str | None = None
     latitude: float | None
     longitude: float | None
     location_address: str | None = None
