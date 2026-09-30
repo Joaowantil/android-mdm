@@ -14,9 +14,13 @@ import {
   TextField,
   MenuItem,
   Alert,
+  Button,
+  Stack,
 } from '@mui/material'
+import { Download } from '@mui/icons-material'
 import api from '../services/api'
 import { getErrorMessage } from '../utils/errors'
+import { exportToCsv } from '../utils/csv'
 
 interface AuditLogEntry {
   id: number
@@ -68,6 +72,22 @@ export default function AuditLogPage() {
 
   const uniqueActions = Array.from(new Set(logs.map((l) => l.action))).sort()
 
+  const exportCsv = () => {
+    exportToCsv(
+      `auditoria-${new Date().toISOString().slice(0, 10)}.csv`,
+      logs.map((l) => ({
+        data_hora: l.created_at || '',
+        usuario: l.actor_email || '',
+        papel: l.actor_role || '',
+        acao: l.action,
+        tipo_alvo: l.target_type || '',
+        id_alvo: l.target_id || '',
+        detalhes: l.details || '',
+        ip: l.ip_address || '',
+      }))
+    )
+  }
+
   return (
     <Box>
       <Typography variant="h4" gutterBottom>
@@ -86,6 +106,7 @@ export default function AuditLogPage() {
 
       <Card sx={{ mb: 2 }}>
         <CardContent>
+          <Stack direction="row" spacing={2} alignItems="center">
           <TextField
             select
             label="Filtrar por ação"
@@ -101,6 +122,16 @@ export default function AuditLogPage() {
               </MenuItem>
             ))}
           </TextField>
+          <Button
+            variant="outlined"
+            size="small"
+            startIcon={<Download />}
+            onClick={exportCsv}
+            disabled={logs.length === 0}
+          >
+            Exportar CSV
+          </Button>
+          </Stack>
         </CardContent>
       </Card>
 
