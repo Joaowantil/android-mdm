@@ -102,6 +102,20 @@ export default function DeviceDetail() {
     }
   }
 
+  const [notesDraft, setNotesDraft] = useState('')
+  const [notesDirty, setNotesDirty] = useState(false)
+
+  const saveNotes = async () => {
+    try {
+      await api.put(`/devices/${id}`, { notes: notesDraft })
+      setDevice((prev) => (prev ? { ...prev, notes: notesDraft || null } : prev))
+      setNotesDirty(false)
+      setAlert({ type: 'success', message: 'Notas salvas' })
+    } catch {
+      setAlert({ type: 'error', message: 'Falha ao salvar notas' })
+    }
+  }
+
   // While a location request is in flight, poll the device until it reports a
   // fresh position (or give up after a timeout if the device is offline).
   useEffect(() => {
@@ -139,6 +153,8 @@ export default function DeviceDetail() {
         (dev.kiosk_web_links || []).map((l) => `${l.label} | ${l.url}`).join('\n')
       )
       setKioskPin(dev.kiosk_pin || '')
+      setNotesDraft(dev.notes || '')
+      setNotesDirty(false)
     } catch (err: unknown) {
       // Device removed (e.g. released and deleted) -> go back to the list.
       const e = err as { response?: { status?: number } }
@@ -389,6 +405,38 @@ export default function DeviceDetail() {
                   )}
                 </Box>
               ) : null}
+            </CardContent>
+          </Card>
+
+          <Card sx={{ mt: 2 }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom>
+                Notas
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 1 }}>
+                Histórico de manutenção, quem usa o aparelho, etc. Só você
+                (equipe interna) vê isso - nunca é enviado ao dispositivo.
+              </Typography>
+              <TextField
+                fullWidth
+                multiline
+                minRows={3}
+                placeholder="Ex: trocou a tela em 12/03, usado pelo turno da noite..."
+                value={notesDraft}
+                onChange={(e) => {
+                  setNotesDraft(e.target.value)
+                  setNotesDirty(true)
+                }}
+              />
+              <Button
+                variant="contained"
+                size="small"
+                sx={{ mt: 1 }}
+                onClick={saveNotes}
+                disabled={!notesDirty}
+              >
+                Salvar notas
+              </Button>
             </CardContent>
           </Card>
 
