@@ -26,6 +26,8 @@ import {
   InputLabel,
   Stack,
   TextField,
+  Checkbox,
+  Toolbar,
 } from '@mui/material'
 import { SelectChangeEvent } from '@mui/material/Select'
 import {
@@ -37,12 +39,14 @@ import {
   Visibility,
   RestartAlt,
   Message,
+  Download,
 } from '@mui/icons-material'
 import { QRCodeCanvas } from 'qrcode.react'
 import api from '../services/api'
 import { Device, Group } from '../types'
 import { lastOnlineText } from '../utils/time'
 import { getErrorMessage } from '../utils/errors'
+import { exportToCsv } from '../utils/csv'
 
 export default function Devices() {
   const [devices, setDevices] = useState<Device[]>([])
@@ -52,6 +56,8 @@ export default function Devices() {
   const [enrollDeviceId, setEnrollDeviceId] = useState<number | null>(null)
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [groupFilter, setGroupFilter] = useState<string>('all')
+  const [searchText, setSearchText] = useState('')
+  const [selected, setSelected] = useState<number[]>([])
   const navigate = useNavigate()
   const [searchParams, setSearchParams] = useSearchParams()
   const statusFilter = searchParams.get('status') || 'all'
@@ -106,6 +112,7 @@ export default function Devices() {
   }
 
   const filteredDevices = useMemo(() => {
+    const query = searchText.trim().toLowerCase()
     return devices.filter((d) => {
       if (statusFilter === 'online' && !d.is_online) return false
       if (statusFilter === 'offline' && d.is_online) return false
@@ -113,9 +120,23 @@ export default function Devices() {
       if (groupFilter === 'none' && d.group_id != null) return false
       if (groupFilter !== 'all' && groupFilter !== 'none' && String(d.group_id) !== groupFilter)
         return false
+      if (query) {
+        const haystack = [
+          d.asset_id,
+          d.device_id,
+          d.model,
+          d.manufacturer,
+          d.serial_number,
+          d.wifi_ssid,
+        ]
+          .filter(Boolean)
+          .join(' ')
+          .toLowerCase()
+        if (!haystack.includes(query)) return false
+      }
       return true
     })
-  }, [devices, statusFilter, groupFilter])
+  }, [devices, statusFilter, groupFilter, searchText])
 
   const generateToken = async () => {
     try {
@@ -196,6 +217,91 @@ export default function Devices() {
     } catch (err: unknown) {
       setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao enviar mensagem') })
     }
+  }
+
+  const [bulkMessageOpen, setBulkMessageOpen] = useState(false)
+
+  const sendBulkMessage = async () => {
+    if (selected.length === 0) return
+    const results = await Promise.allSettled(
+      selected.map((id) => api.post(`/devices/${id}/message`, messageForm))
+    )
+    const failed = results.filter((r) => r.status === 'rejected').length
+    setAlert({
+      type: failed === 0 ? 'success' : 'error',
+      message:
+        failed === 0
+          ? `Mensagem enviada a ${selected.length} dispositivo(s)`
+          : `Enviado a ${selected.length - failed} de ${selected.length} (${failed} falharam)`,
+    })
+    setBulkMessageOpen(false)
+    setMessageForm({ title: 'Aviso', message: '' })
+    setSelected([])
+  }
+
+  const bulkReboot = async () => {
+    if (selected.length === 0) return
+    if (!window.confirm(`Reiniciar ${selected.length} dispositivo(s) agora?`)) return
+    const results = await Promise.allSettled(selected.map((id) => api.post(`/devices/${id}/reboot`)))
+    const failed = results.filter((r) => r.status === 'rejected').length
+    setAlert({
+      type: failed === 0 ? 'success' : 'error',
+      message:
+        failed === 0
+          ? `Comando de reinicialização enviado a ${selected.length} dispositivo(s)`
+          : `Enviado a ${selected.length - failed} de ${selected.length} (${failed} falharam - confira suas permissões)`,
+    })
+    setSelected([])
+  }
+
+  const bulkLock = async () => {
+    if (selected.length === 0) return
+    if (!window.confirm(`Bloquear ${selected.length} dispositivo(s) agora?`)) return
+    const results = await Promise.allSettled(selected.map((id) => api.post(`/devices/${id}/lock`)))
+    const failed = results.filter((r) => r.status === 'rejected').length
+    setAlert({
+      type: failed === 0 ? 'success' : 'error',
+      message:
+        failed === 0
+          ? `${selected.length} dispositivo(s) bloqueado(s)`
+          : `Bloqueado ${selected.length - failed} de ${selected.length} (${failed} falharam - confira suas permissões)`,
+    })
+    setSelected([])
+    loadDevices()
+  }
+
+  const toggleSelectOne = (id: number) => {
+    setSelected((prev) => (prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]))
+  }
+
+  const toggleSelectAll = () => {
+    if (selected.length === filteredDevices.length) {
+      setSelected([])
+    } else {
+      setSelected(filteredDevices.map((d) => d.id))
+    }
+  }
+
+  const exportDevicesCsv = () => {
+    exportToCsv(
+      `dispositivos-${new Date().toISOString().slice(0, 10)}.csv`,
+      filteredDevices.map((d) => ({
+        asset_id: d.asset_id || '',
+        device_id: d.device_id,
+        nome: d.name || '',
+        modelo: d.model || '',
+        fabricante: d.manufacturer || '',
+        versao_os: d.os_version || '',
+        numero_serie: d.serial_number || '',
+        status: d.status,
+        online: d.is_online ? 'sim' : 'não',
+        ultima_vez_visto: d.last_seen || '',
+        bateria_pct: d.battery_level ?? '',
+        wifi: d.wifi_ssid || '',
+        ip: d.ip_address || '',
+        grupo_id: d.group_id ?? '',
+      }))
+    )
   }
 
   const deleteDevice = async (device: Device) => {
@@ -289,7 +395,14 @@ export default function Devices() {
         </Alert>
       )}
 
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }} flexWrap="wrap">
+      <Stack direction="row" spacing={2} sx={{ mb: 2 }} flexWrap="wrap" alignItems="center">
+        <TextField
+          size="small"
+          placeholder="Buscar por nome, modelo, série, wifi..."
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+          sx={{ minWidth: 260 }}
+        />
         <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>Status</InputLabel>
           <Select
@@ -319,7 +432,44 @@ export default function Devices() {
             ))}
           </Select>
         </FormControl>
+        <Button
+          variant="outlined"
+          size="small"
+          startIcon={<Download />}
+          onClick={exportDevicesCsv}
+          disabled={filteredDevices.length === 0}
+        >
+          Exportar CSV
+        </Button>
       </Stack>
+
+      {selected.length > 0 && (
+        <Toolbar
+          sx={{
+            mb: 2,
+            bgcolor: 'action.selected',
+            borderRadius: 1,
+            display: 'flex',
+            gap: 1,
+          }}
+        >
+          <Typography sx={{ flex: 1 }} variant="subtitle2">
+            {selected.length} selecionado(s)
+          </Typography>
+          <Button size="small" startIcon={<RestartAlt />} onClick={bulkReboot}>
+            Reiniciar
+          </Button>
+          <Button size="small" startIcon={<Lock />} onClick={bulkLock}>
+            Bloquear
+          </Button>
+          <Button size="small" startIcon={<Message />} onClick={() => setBulkMessageOpen(true)}>
+            Mensagem
+          </Button>
+          <Button size="small" onClick={() => setSelected([])}>
+            Limpar seleção
+          </Button>
+        </Toolbar>
+      )}
 
       <Card>
         <CardContent>
@@ -327,6 +477,14 @@ export default function Devices() {
             <Table>
               <TableHead>
                 <TableRow>
+                  <TableCell padding="checkbox">
+                    <Checkbox
+                      size="small"
+                      checked={filteredDevices.length > 0 && selected.length === filteredDevices.length}
+                      indeterminate={selected.length > 0 && selected.length < filteredDevices.length}
+                      onChange={toggleSelectAll}
+                    />
+                  </TableCell>
                   <TableCell>ID</TableCell>
                   <TableCell>Dispositivo</TableCell>
                   <TableCell>Grupo</TableCell>
@@ -341,7 +499,7 @@ export default function Devices() {
               <TableBody>
                 {filteredDevices.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={9} align="center">
+                    <TableCell colSpan={10} align="center">
                       <Typography color="text.secondary">
                         Nenhum dispositivo
                       </Typography>
@@ -349,7 +507,14 @@ export default function Devices() {
                   </TableRow>
                 ) : (
                   filteredDevices.map((device) => (
-                    <TableRow key={device.id} hover>
+                    <TableRow key={device.id} hover selected={selected.includes(device.id)}>
+                      <TableCell padding="checkbox">
+                        <Checkbox
+                          size="small"
+                          checked={selected.includes(device.id)}
+                          onChange={() => toggleSelectOne(device.id)}
+                        />
+                      </TableCell>
                       <TableCell>
                         <Chip label={device.asset_id || `MDM-${device.id}`} size="small" variant="outlined" />
                       </TableCell>
@@ -507,6 +672,42 @@ export default function Devices() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setEnrollDialog(false)}>Fechar</Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={bulkMessageOpen} onClose={() => setBulkMessageOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Enviar mensagem a {selected.length} dispositivo(s)</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            A mesma mensagem será enviada como pop-up a todos os dispositivos
+            selecionados.
+          </Typography>
+          <TextField
+            fullWidth
+            label="Título"
+            value={messageForm.title}
+            onChange={(e) => setMessageForm({ ...messageForm, title: e.target.value })}
+            margin="normal"
+            inputProps={{ maxLength: 100 }}
+          />
+          <TextField
+            fullWidth
+            label="Mensagem"
+            value={messageForm.message}
+            onChange={(e) => setMessageForm({ ...messageForm, message: e.target.value })}
+            margin="normal"
+            multiline
+            rows={3}
+            required
+            inputProps={{ maxLength: 500 }}
+            helperText={`${messageForm.message.length}/500`}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setBulkMessageOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={sendBulkMessage} disabled={!messageForm.message.trim()}>
+            Enviar a todos
+          </Button>
         </DialogActions>
       </Dialog>
 
