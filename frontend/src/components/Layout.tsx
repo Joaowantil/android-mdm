@@ -23,7 +23,12 @@ import {
   People as PeopleIcon,
   History as AuditIcon,
   Logout as LogoutIcon,
+  DarkMode,
+  LightMode,
+  DevicesOther as SessionsIcon,
+  FactCheck as ComplianceIcon,
 } from '@mui/icons-material'
+import { useThemeMode } from '../contexts/ThemeModeContext'
 
 const DRAWER_WIDTH = 240
 
@@ -32,8 +37,10 @@ const menuItems = [
   { text: 'Dispositivos', icon: <DevicesIcon />, path: '/devices' },
   { text: 'Políticas', icon: <PolicyIcon />, path: '/policies' },
   { text: 'Grupos', icon: <GroupsIcon />, path: '/groups' },
+  { text: 'Conformidade', icon: <ComplianceIcon />, path: '/compliance' },
   { text: 'Usuários', icon: <PeopleIcon />, path: '/users', adminOnly: true },
   { text: 'Log de auditoria', icon: <AuditIcon />, path: '/audit-log', adminOnly: true },
+  { text: 'Sessões ativas', icon: <SessionsIcon />, path: '/sessions', adminOnly: true },
 ]
 
 interface LayoutProps {
@@ -46,6 +53,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   const navigate = useNavigate()
   const location = useLocation()
   const isAdmin = localStorage.getItem('mdm_role') === 'admin'
+  const { mode, toggleMode } = useThemeMode()
 
   const drawer = (
     <Box>
@@ -91,6 +99,15 @@ export default function Layout({ children, onLogout }: LayoutProps) {
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
             Android MDM - Gerenciamento de Dispositivos
           </Typography>
+          <IconButton
+            color="inherit"
+            onClick={toggleMode}
+            sx={{ mr: 1 }}
+            aria-label={mode === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
+            title={mode === 'light' ? 'Modo escuro' : 'Modo claro'}
+          >
+            {mode === 'light' ? <DarkMode /> : <LightMode />}
+          </IconButton>
           <Button color="inherit" startIcon={<LogoutIcon />} onClick={onLogout}>
             Sair
           </Button>
