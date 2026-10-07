@@ -6,7 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
 from app.core.database import init_db, async_session
-from app.api.routes import auth, devices, policies, users, groups, audit
+from app.api.routes import auth, devices, policies, users, groups, audit, sessions, compliance
 from app.services.seed import seed_admin
 
 logger = logging.getLogger("app.startup")
@@ -84,6 +84,8 @@ app.include_router(policies.router, prefix="/api")
 app.include_router(users.router, prefix="/api")
 app.include_router(groups.router, prefix="/api")
 app.include_router(audit.router, prefix="/api")
+app.include_router(sessions.router, prefix="/api")
+app.include_router(compliance.router, prefix="/api")
 
 
 @app.get("/")
