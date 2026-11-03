@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Table,
   TableBody,
@@ -17,14 +16,17 @@ import {
   DialogActions,
   TextField,
   MenuItem,
-  Chip,
   IconButton,
   Alert,
   Tooltip,
+  Avatar,
 } from '@mui/material'
 import { Add, Delete, Key, Block, CheckCircle, Edit } from '@mui/icons-material'
 import api from '../services/api'
 import { getErrorMessage } from '../utils/errors'
+import PageHeader from '../components/PageHeader'
+import { ToneChip } from '../components/StatusChip'
+import { brand } from '../theme'
 
 interface User {
   id: number
@@ -135,12 +137,15 @@ export default function Users() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4">Usuários</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={() => setCreateOpen(true)}>
-          Novo Usuário
-        </Button>
-      </Box>
+      <PageHeader
+        title="Usuários"
+        subtitle={`${users.length} ${users.length === 1 ? 'usuário' : 'usuários'} com acesso ao painel`}
+        actions={
+          <Button variant="contained" startIcon={<Add />} onClick={() => setCreateOpen(true)}>
+            Novo usuário
+          </Button>
+        }
+      />
 
       {alert && (
         <Alert severity={alert.type} onClose={() => setAlert(null)} sx={{ mb: 2 }}>
@@ -149,85 +154,97 @@ export default function Users() {
       )}
 
       <Card>
-        <CardContent>
-          <TableContainer>
-            <Table>
-              <TableHead>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Usuário</TableCell>
+                <TableCell>Perfil</TableCell>
+                <TableCell>Situação</TableCell>
+                <TableCell align="right">Ações</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {users.length === 0 ? (
                 <TableRow>
-                  <TableCell>Email</TableCell>
-                  <TableCell>Nome</TableCell>
-                  <TableCell>Papel</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Ações</TableCell>
+                  <TableCell colSpan={4} align="center" sx={{ py: 6 }}>
+                    <Typography color="text.secondary">Nenhum usuário</Typography>
+                  </TableCell>
                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {users.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center">
-                      <Typography color="text.secondary">Nenhum usuário</Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  users.map((user) => (
-                    <TableRow key={user.id} hover>
+              ) : (
+                users.map((user) => {
+                  const isMe = user.email === currentEmail
+                  return (
+                    <TableRow key={user.id} hover sx={{ opacity: user.is_active ? 1 : 0.6 }}>
                       <TableCell>
-                        <Typography fontWeight="medium">{user.email}</Typography>
-                        {user.email === currentEmail && (
-                          <Typography variant="caption" color="text.secondary">
-                            (você)
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5 }}>
+                          <Avatar sx={{ width: 36, height: 36, bgcolor: brand.ink, color: brand.teal, fontSize: '0.95rem', fontWeight: 700 }}>
+                            {(user.full_name || user.email)[0].toUpperCase()}
+                          </Avatar>
+                          <Box sx={{ minWidth: 0 }}>
+                            <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                              <Typography sx={{ fontWeight: 600 }} noWrap>
+                                {user.full_name || user.email}
+                              </Typography>
+                              {isMe && <ToneChip label="você" tone="info" />}
+                            </Box>
+                            {user.full_name && (
+                              <Typography variant="caption" color="text.secondary" noWrap sx={{ display: 'block' }}>
+                                {user.email}
+                              </Typography>
+                            )}
+                          </Box>
+                        </Box>
+                      </TableCell>
+                      <TableCell>
+                        <ToneChip label={roleLabel(user.role)} tone={user.role === 'admin' ? 'info' : 'default'} />
+                      </TableCell>
+                      <TableCell>
+                        <Box sx={{ display: 'inline-flex', alignItems: 'center', gap: 0.75 }}>
+                          <Box sx={{ width: 8, height: 8, borderRadius: '50%', bgcolor: user.is_active ? 'success.main' : 'text.disabled' }} />
+                          <Typography variant="body2" sx={{ fontWeight: 600, color: user.is_active ? 'success.main' : 'text.secondary' }}>
+                            {user.is_active ? 'Ativo' : 'Desativado'}
                           </Typography>
-                        )}
+                        </Box>
                       </TableCell>
-                      <TableCell>{user.full_name || '-'}</TableCell>
-                      <TableCell>
-                        <Chip
-                          label={roleLabel(user.role)}
-                          size="small"
-                          color={user.role === 'admin' ? 'primary' : 'default'}
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={user.is_active ? 'Ativo' : 'Inativo'}
-                          size="small"
-                          color={user.is_active ? 'success' : 'default'}
-                        />
-                      </TableCell>
-                      <TableCell>
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
                         <Tooltip title="Editar">
-                          <IconButton size="small" onClick={() => openEdit(user)}>
-                            <Edit />
+                          <IconButton size="small" onClick={() => openEdit(user)} aria-label="Editar usuário">
+                            <Edit fontSize="small" />
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Alterar senha">
-                          <IconButton size="small" onClick={() => { setPwdTarget(user); setNewPassword('') }}>
-                            <Key />
+                          <IconButton size="small" onClick={() => { setPwdTarget(user); setNewPassword('') }} aria-label="Alterar senha">
+                            <Key fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        {user.email !== currentEmail && (
+                        {!isMe && (
                           <>
-                            <Tooltip title={user.is_active ? 'Desativar' : 'Ativar'}>
-                              <IconButton size="small" onClick={() => toggleActive(user)}>
-                                {user.is_active ? <Block /> : <CheckCircle />}
+                            <Tooltip title={user.is_active ? 'Desativar acesso' : 'Reativar acesso'}>
+                              <IconButton size="small" onClick={() => toggleActive(user)} aria-label={user.is_active ? 'Desativar usuário' : 'Reativar usuário'}>
+                                {user.is_active ? <Block fontSize="small" /> : <CheckCircle fontSize="small" />}
                               </IconButton>
                             </Tooltip>
                             <Tooltip title="Excluir">
-                              <IconButton size="small" color="error" onClick={() => deleteUser(user)}>
-                                <Delete />
+                              <IconButton
+                                size="small"
+                                onClick={() => deleteUser(user)}
+                                aria-label="Excluir usuário"
+                                sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
+                              >
+                                <Delete fontSize="small" />
                               </IconButton>
                             </Tooltip>
                           </>
                         )}
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Card>
 
       <Dialog open={createOpen} onClose={() => setCreateOpen(false)} maxWidth="sm" fullWidth>

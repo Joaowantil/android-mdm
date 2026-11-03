@@ -15,7 +15,11 @@ api.interceptors.request.use((config) => {
 api.interceptors.response.use(
   (response) => response,
   (error) => {
-    if (error.response?.status === 401) {
+    // 401 em qualquer tela = sessão expirada/revogada: volta para o login. Exceção: o próprio
+    // login, onde 401 significa "senha errada". Redirecionar ali recarregava a página e a
+    // mensagem de erro sumia no mesmo instante.
+    const isLoginRequest = String(error.config?.url || '').includes('/auth/login')
+    if (error.response?.status === 401 && !isLoginRequest) {
       localStorage.removeItem('mdm_token')
       window.location.href = '/'
     }

@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Table,
   TableBody,
@@ -25,6 +24,7 @@ import {
   FormControlLabel,
   FormGroup,
   InputAdornment,
+  Skeleton,
 } from '@mui/material'
 import {
   Add,
@@ -33,9 +33,16 @@ import {
   Edit,
   Visibility,
   VisibilityOff,
+  Block,
+  CheckCircleOutline,
+  Fullscreen,
+  GppMaybeOutlined,
 } from '@mui/icons-material'
 import api from '../services/api'
 import { Policy, Device } from '../types'
+import PageHeader from '../components/PageHeader'
+import { ToneChip } from '../components/StatusChip'
+import type { Tone } from '../utils/labels'
 
 const POLICY_TYPES = [
   { value: 'app_allowlist', label: 'App Allowlist (só esses apps)' },
@@ -44,8 +51,39 @@ const POLICY_TYPES = [
   { value: 'restrictions', label: 'Restrições do Dispositivo' },
 ]
 
+const TYPE_STYLE: Record<string, { label: string; tone: Tone; icon: React.ReactElement }> = {
+  app_allowlist: { label: 'Apps permitidos', tone: 'success', icon: <CheckCircleOutline /> },
+  app_blocklist: { label: 'Apps bloqueados', tone: 'error', icon: <Block /> },
+  kiosk: { label: 'Modo kiosk', tone: 'info', icon: <Fullscreen /> },
+  restrictions: { label: 'Restrições', tone: 'warning', icon: <GppMaybeOutlined /> },
+}
+
+// O que a política contém, em palavras. Antes só contava app_list, então "Kiosk" e
+// "Restrições" apareciam como "0 app(s)" mesmo estando configuradas.
+function scopeSummary(p: Policy): string {
+  const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`
+  switch (p.policy_type) {
+    case 'app_allowlist':
+      return plural(p.app_list?.length ?? 0, 'app permitido', 'apps permitidos')
+    case 'app_blocklist':
+      return plural(p.app_list?.length ?? 0, 'app bloqueado', 'apps bloqueados')
+    case 'kiosk': {
+      const apps = p.kiosk_apps?.length ?? 0
+      const links = p.kiosk_web_links?.length ?? 0
+      return `${plural(apps, 'app', 'apps')} · ${plural(links, 'site', 'sites')}`
+    }
+    case 'restrictions': {
+      const flags = [p.camera_disabled, p.screenshot_disabled, p.usb_disabled, p.wifi_config_disabled, p.bluetooth_disabled, p.install_apps_disabled, p.uninstall_apps_disabled, p.factory_reset_disabled]
+      return plural(flags.filter(Boolean).length, 'restrição ativa', 'restrições ativas')
+    }
+    default:
+      return '—'
+  }
+}
+
 export default function Policies() {
   const [policies, setPolicies] = useState<Policy[]>([])
+  const [appliedTo, setAppliedTo] = useState<Record<number, number>>({})
   const [dialogOpen, setDialogOpen] = useState(false)
   const [alert, setAlert] = useState<{ type: 'success' | 'error'; message: string } | null>(null)
   const [devices, setDevices] = useState<Device[]>([])
@@ -112,6 +150,7 @@ export default function Policies() {
       await api.post(`/policies/${assignTarget.id}/assign`, { device_ids: selectedDeviceIds })
       setAlert({ type: 'success', message: 'Política atribuída aos dispositivos selecionados' })
       setAssignTarget(null)
+      loadPolicies()
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao atribuir política' })
     }
@@ -121,9 +160,25 @@ export default function Policies() {
     try {
       const response = await api.get('/policies')
       setPolicies(response.data)
+      loadAppliedCounts(response.data)
     } catch (err) {
       console.error('Failed to load policies:', err)
     }
+  }
+
+  // Em quantos aparelhos cada política está aplicada (uma consulta por política; são poucas).
+  const loadAppliedCounts = async (list: Policy[]) => {
+    const entries = await Promise.all(
+      list.map(async (p) => {
+        try {
+          const r = await api.get(`/policies/${p.id}/assignments`)
+          return [p.id, new Set<number>(r.data.device_ids || []).size] as const
+        } catch {
+          return [p.id, -1] as const
+        }
+      })
+    )
+    setAppliedTo(Object.fromEntries(entries))
   }
 
   const openCreate = () => {
@@ -224,16 +279,15 @@ export default function Policies() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4">Políticas</Typography>
-        <Button
-          variant="contained"
-          startIcon={<Add />}
-          onClick={openCreate}
-        >
-          Nova Política
-        </Button>
-      </Box>
+      <PageHeader
+        title="Políticas"
+        subtitle="Regras aplicadas aos aparelhos: apps, kiosk e restrições"
+        actions={
+          <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
+            Nova política
+          </Button>
+        }
+      />
 
       {alert && (
         <Alert severity={alert.type} onClose={() => setAlert(null)} sx={{ mb: 2 }}>
@@ -242,88 +296,90 @@ export default function Policies() {
       )}
 
       <Card>
-        <CardContent>
-          <TableContainer>
-            <Table>
-              <TableHead>
+        <TableContainer>
+          <Table>
+            <TableHead>
+              <TableRow>
+                <TableCell>Política</TableCell>
+                <TableCell>Tipo</TableCell>
+                <TableCell>Conteúdo</TableCell>
+                <TableCell>Aplicada a</TableCell>
+                <TableCell align="right">Ações</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {policies.length === 0 ? (
                 <TableRow>
-                  <TableCell>Nome</TableCell>
-                  <TableCell>Tipo</TableCell>
-                  <TableCell>Apps</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Ações</TableCell>
+                  <TableCell colSpan={5} align="center" sx={{ py: 6 }}>
+                    <Typography sx={{ fontWeight: 600 }}>Nenhuma política criada</Typography>
+                    <Typography variant="body2" color="text.secondary">Crie a primeira pelo botão acima.</Typography>
+                  </TableCell>
                 </TableRow>
-              </TableHead>
-              <TableBody>
-                {policies.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={5} align="center">
-                      <Typography color="text.secondary">
-                        Nenhuma política criada
-                      </Typography>
-                    </TableCell>
-                  </TableRow>
-                ) : (
-                  policies.map((policy) => (
+              ) : (
+                policies.map((policy) => {
+                  const style = TYPE_STYLE[policy.policy_type]
+                  const count = appliedTo[policy.id]
+                  return (
                     <TableRow key={policy.id} hover>
-                      <TableCell>
-                        <Typography fontWeight="medium">{policy.name}</Typography>
-                        <Typography variant="caption" color="text.secondary">
-                          {policy.description}
-                        </Typography>
+                      <TableCell sx={{ maxWidth: 360 }}>
+                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                          <Typography sx={{ fontWeight: 600 }}>{policy.name}</Typography>
+                          {!policy.is_active && <ToneChip label="Inativa" tone="default" />}
+                        </Box>
+                        {policy.description && (
+                          <Typography variant="caption" color="text.secondary" sx={{ display: 'block' }}>
+                            {policy.description}
+                          </Typography>
+                        )}
                       </TableCell>
                       <TableCell>
-                        <Chip
-                          label={getPolicyTypeLabel(policy.policy_type)}
-                          size="small"
-                          variant="outlined"
-                        />
+                        {style ? (
+                          <ToneChip label={style.label} tone={style.tone} icon={style.icon} />
+                        ) : (
+                          <Chip label={getPolicyTypeLabel(policy.policy_type)} size="small" variant="outlined" />
+                        )}
                       </TableCell>
+                      <TableCell sx={{ color: 'text.secondary' }}>{scopeSummary(policy)}</TableCell>
                       <TableCell>
-                        {policy.app_list?.length || 0} app(s)
+                        {count === undefined ? (
+                          <Skeleton width={90} />
+                        ) : count < 0 ? (
+                          '—'
+                        ) : count === 0 ? (
+                          <Typography variant="body2" color="text.disabled">Nenhum aparelho</Typography>
+                        ) : (
+                          <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                            {count} {count === 1 ? 'dispositivo' : 'dispositivos'}
+                          </Typography>
+                        )}
                       </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={policy.is_active ? 'Ativa' : 'Inativa'}
-                          size="small"
-                          color={policy.is_active ? 'success' : 'default'}
-                        />
-                      </TableCell>
-                      <TableCell>
+                      <TableCell align="right" sx={{ whiteSpace: 'nowrap' }}>
+                        <Button size="small" startIcon={<DevicesOther />} onClick={() => openAssign(policy)} sx={{ mr: 0.5 }}>
+                          Atribuir
+                        </Button>
                         <Tooltip title="Editar">
-                          <IconButton
-                            size="small"
-                            onClick={() => openEdit(policy)}
-                          >
-                            <Edit />
+                          <IconButton size="small" onClick={() => openEdit(policy)} aria-label="Editar política">
+                            <Edit fontSize="small" />
                           </IconButton>
                         </Tooltip>
-                        <Tooltip title="Atribuir a dispositivos">
+                        <Tooltip title="Excluir">
                           <IconButton
                             size="small"
-                            color="primary"
-                            onClick={() => openAssign(policy)}
-                          >
-                            <DevicesOther />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Remover">
-                          <IconButton
-                            size="small"
-                            color="error"
                             onClick={() => deletePolicy(policy.id)}
+                            aria-label="Excluir política"
+                            sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}
                           >
-                            <Delete />
+                            <Delete fontSize="small" />
                           </IconButton>
                         </Tooltip>
                       </TableCell>
                     </TableRow>
-                  ))
-                )}
-              </TableBody>
-            </Table>
-          </TableContainer>
-        </CardContent>
+                  )
+                })
+              )}
+            </TableBody>
+          </Table>
+        </TableContainer>
       </Card>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="sm" fullWidth>
