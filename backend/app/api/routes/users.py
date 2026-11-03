@@ -1,10 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.core.database import get_db
 from app.core.security import get_current_admin, get_password_hash
 from app.models.user import User
+from app.models.session import Session as SessionModel
 from app.schemas.user import UserResponse, UserCreate, UserUpdate, PasswordChange
 from app.services.audit import log_action
 
@@ -178,6 +179,9 @@ async def delete_user(
     if user.email == admin["email"]:
         raise HTTPException(status_code=400, detail="Não é possível excluir a si mesmo")
     deleted_email = user.email
+    # The user's login sessions reference them by foreign key; remove those first
+    # (PostgreSQL refuses to delete a user that still has sessions).
+    await db.execute(delete(SessionModel).where(SessionModel.user_id == user.id))
     await db.delete(user)
     await log_action(
         db,
