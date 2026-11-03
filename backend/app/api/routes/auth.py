@@ -44,7 +44,10 @@ async def login(request: LoginRequest, http_request: Request, db: AsyncSession =
             details=f"Tentativa de login falhou para {email}",
             ip_address=client_ip,
         )
-        await db.flush()
+        # Commit NOW: raising below makes get_db roll the request back, which would
+        # silently erase this very audit entry - the failed attempts are exactly the
+        # records a security log exists to keep.
+        await db.commit()
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -60,7 +63,7 @@ async def login(request: LoginRequest, http_request: Request, db: AsyncSession =
             details="Login recusado: conta desativada",
             ip_address=client_ip,
         )
-        await db.flush()
+        await db.commit()  # same reason as above
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Account is disabled",

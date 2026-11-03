@@ -5,12 +5,13 @@ from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import delete, select
 
 from app.core.database import get_db
 from app.core.security import get_current_user, get_current_admin
 from app.models.device import Device
 from app.models.command import DeviceCommand
+from app.models.policy import PolicyAssignment
 from app.models.group import Group
 from app.services.audit import log_action
 from app.schemas.device import (
@@ -215,6 +216,20 @@ async def update_device(
     return device
 
 
+async def _purge_device(db: AsyncSession, device: Device) -> None:
+    """Removes a device together with everything that points at it.
+
+    PostgreSQL enforces foreign keys; the SQLite setup this project started on did not,
+    so deleting a device used to leave its commands and policy assignments behind as
+    orphans without anyone noticing. Now they are removed first, and the final flush
+    makes any remaining database error surface inside the request.
+    """
+    await db.execute(delete(DeviceCommand).where(DeviceCommand.device_id == device.id))
+    await db.execute(delete(PolicyAssignment).where(PolicyAssignment.device_id == device.id))
+    await db.delete(device)
+    await db.flush()
+
+
 @router.delete("/{device_id}")
 async def delete_device(
     device_id: int,
@@ -250,7 +265,7 @@ async def delete_device(
         await db.flush()
         return {"message": "Release requested", "pending": True}
 
-    await db.delete(device)
+    await _purge_device(db, device)
     return {"message": "Device deleted", "pending": False}
 
 
@@ -558,8 +573,7 @@ async def ack_command(
         )
         dev = dev_result.scalar_one_or_none()
         if dev is not None:
-            await db.delete(dev)
-            await db.flush()
+            await _purge_device(db, dev)
 
     return {"status": "ok"}
 

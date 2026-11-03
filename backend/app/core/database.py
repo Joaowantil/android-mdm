@@ -1,9 +1,22 @@
+import asyncio
+import logging
+
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase
 
 from app.core.config import settings
 
-engine = create_async_engine(settings.DATABASE_URL, echo=settings.DEBUG)
+logger = logging.getLogger("app.db")
+
+_is_sqlite = settings.DATABASE_URL.startswith("sqlite")
+_engine_kwargs: dict = {"echo": settings.DEBUG}
+if not _is_sqlite:
+    # pre_ping drops connections the server closed (restart, idle timeout) instead of
+    # failing the first request that tries to reuse one; recycle keeps them from living
+    # past typical proxy/firewall idle limits.
+    _engine_kwargs.update(pool_pre_ping=True, pool_size=10, max_overflow=10, pool_recycle=1800)
+
+engine = create_async_engine(settings.DATABASE_URL, **_engine_kwargs)
 async_session = async_sessionmaker(engine, class_=AsyncSession, expire_on_commit=False)
 
 
@@ -15,10 +28,19 @@ async def get_db() -> AsyncSession:
     async with async_session() as session:
         try:
             yield session
-            await session.commit()
         except Exception:
             await session.rollback()
             raise
+        else:
+            try:
+                await session.commit()
+            except Exception:
+                # With this FastAPI version the commit runs after the response has
+                # already gone out, so the client may have seen a success. Never let
+                # that pass unrecorded.
+                logger.exception("commit failed - the change was NOT saved")
+                await session.rollback()
+                raise
         finally:
             await session.close()
 
@@ -27,7 +49,8 @@ def _run_light_migrations(conn):
     """Add columns introduced after a table was first created.
 
     The project uses ``create_all`` (no Alembic), which never alters existing
-    tables. This keeps already-deployed SQLite databases in sync without a reset.
+    tables. This keeps already-deployed databases (SQLite or PostgreSQL) in sync
+    without a reset. Fresh databases get every column from the models directly.
     """
     from sqlalchemy import inspect, text
 
@@ -59,7 +82,19 @@ def _run_light_migrations(conn):
             conn.execute(text("ALTER TABLE policies ADD COLUMN kiosk_pin VARCHAR"))
 
 
-async def init_db():
-    async with engine.begin() as conn:
-        await conn.run_sync(Base.metadata.create_all)
-        await conn.run_sync(_run_light_migrations)
+async def init_db(max_wait_seconds: int = 60):
+    # In containers the API can start a moment before PostgreSQL accepts connections;
+    # retry for a while instead of crashing on the first refusal.
+    waited = 0
+    while True:
+        try:
+            async with engine.begin() as conn:
+                await conn.run_sync(Base.metadata.create_all)
+                await conn.run_sync(_run_light_migrations)
+            return
+        except Exception as exc:
+            if _is_sqlite or waited >= max_wait_seconds:
+                raise
+            logger.warning("database not ready (%s) - retrying in 2s", type(exc).__name__)
+            await asyncio.sleep(2)
+            waited += 2

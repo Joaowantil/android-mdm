@@ -96,4 +96,5 @@ async def delete_group(
     for dev in devs.scalars().all():
         dev.group_id = None
     await db.delete(group)
+    await db.flush()
     return {"message": "Group deleted"}
