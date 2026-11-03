@@ -466,11 +466,11 @@ class KioskActivity : AppCompatActivity() {
         val prefs = getSharedPreferences(PREFS, Context.MODE_PRIVATE)
         val assetId = prefs.getString("asset_id", null)
         val group = prefs.getString("group_name", null)
-        // The logo represents "MDM Agent"; the text carries the device ID and group.
+        // The logo represents "Arezzo Device Manager"; the text carries the device ID and group.
         val parts = mutableListOf<String>()
         if (!assetId.isNullOrBlank()) parts.add(assetId)
         if (!group.isNullOrBlank()) parts.add(group)
-        val label = if (parts.isEmpty()) "MDM Agent" else parts.joinToString(" · ")
+        val label = if (parts.isEmpty()) "Arezzo Device Manager" else parts.joinToString(" · ")
         title = label
         findViewById<TextView>(R.id.kioskTitle).text = label
     }
@@ -560,7 +560,7 @@ class KioskActivity : AppCompatActivity() {
         val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             manager.createNotificationChannel(
-                NotificationChannel(CHANNEL_ID, "MDM Controle", NotificationManager.IMPORTANCE_HIGH)
+                NotificationChannel(CHANNEL_ID, "Arezzo Device Manager - Controle", NotificationManager.IMPORTANCE_HIGH)
             )
         }
         val pending = PendingIntent.getActivity(

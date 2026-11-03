@@ -122,7 +122,7 @@ class EnrollmentActivity : AppCompatActivity() {
                 putExtra(DevicePolicyManager.EXTRA_DEVICE_ADMIN, componentName)
                 putExtra(
                     DevicePolicyManager.EXTRA_ADD_EXPLANATION,
-                    "O MDM Agent precisa de permissão de administrador para gerenciar este dispositivo."
+                    "O Arezzo Device Manager precisa de permissão de administrador para gerenciar este dispositivo."
                 )
             }
             startActivityForResult(intent, REQUEST_CODE_ENABLE_ADMIN)

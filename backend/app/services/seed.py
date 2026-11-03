@@ -13,7 +13,7 @@ async def seed_admin(db: AsyncSession):
         admin = User(
             email="admin@mdm.local",
             hashed_password=get_password_hash("admin123"),
-            full_name="MDM Administrator",
+            full_name="Administrador",
             role="admin",
             is_active=True,
         )

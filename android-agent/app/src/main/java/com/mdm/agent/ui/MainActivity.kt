@@ -31,7 +31,7 @@ class MainActivity : AppCompatActivity() {
 
         val statusText = findViewById<TextView>(R.id.mainStatusText)
         val idLine = if (assetId != null) "ID do Dispositivo: $assetId\n\n" else ""
-        statusText.text = "MDM Agent Ativo\n\n${idLine}Device ID: $deviceId\n\nO agente está rodando em background e reportando ao servidor MDM."
+        statusText.text = "Arezzo Device Manager Ativo\n\n${idLine}Device ID: $deviceId\n\nO agente está rodando em background e reportando ao servidor."
 
         // Fast command polling + periodic background fallback
         HeartbeatService.start(this)
@@ -59,7 +59,7 @@ class MainActivity : AppCompatActivity() {
             .setTitle("Permitir botão de voltar ao kiosk")
             .setMessage(
                 "Para mostrar o botão flutuante que volta ao kiosk por cima de outros apps, " +
-                    "ative \"Permitir sobreposição a outros apps\" para o MDM Agent."
+                    "ative \"Permitir sobreposição a outros apps\" para o Arezzo Device Manager."
             )
             .setPositiveButton("Abrir") { _, _ ->
                 try {
@@ -79,9 +79,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun confirmRemoveMdm() {
         AlertDialog.Builder(this)
-            .setTitle("Remover MDM")
+            .setTitle("Remover Arezzo Device Manager")
             .setMessage(
-                "Isto vai desligar o kiosk, remover o MDM Agent como administrador/dono do " +
+                "Isto vai desligar o kiosk, remover o Arezzo Device Manager como administrador/dono do " +
                     "dispositivo e abrir a tela de desinstalação. Continuar?"
             )
             .setPositiveButton("Remover") { _, _ -> removeMdm() }
@@ -107,7 +107,7 @@ class MainActivity : AppCompatActivity() {
             ).show()
             return
         }
-        Toast.makeText(this, "MDM removido. Confirme a desinstalação.", Toast.LENGTH_LONG).show()
+        Toast.makeText(this, "Arezzo Device Manager removido. Confirme a desinstalação.", Toast.LENGTH_LONG).show()
         try {
             val intent = Intent(Intent.ACTION_DELETE, Uri.parse("package:$packageName"))
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {

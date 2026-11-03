@@ -74,16 +74,16 @@ class HeartbeatService : Service() {
             val manager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val channel = NotificationChannel(
                 CHANNEL_ID,
-                "MDM Agent",
+                "Arezzo Device Manager",
                 NotificationManager.IMPORTANCE_LOW
             ).apply {
-                description = "Mantém o agente MDM conectado ao servidor"
+                description = "Mantém o Arezzo Device Manager conectado ao servidor"
             }
             manager.createNotificationChannel(channel)
         }
 
         val notification: Notification = NotificationCompat.Builder(this, CHANNEL_ID)
-            .setContentTitle("MDM Agent ativo")
+            .setContentTitle("Arezzo Device Manager ativo")
             .setContentText("Monitorando comandos do servidor")
             .setSmallIcon(R.mipmap.ic_launcher)
             .setOngoing(true)

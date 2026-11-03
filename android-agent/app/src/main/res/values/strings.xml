@@ -1,11 +1,11 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">MDM Agent</string>
+    <string name="app_name">Arezzo Device Manager</string>
     <string name="enrollment_title">Enrollment do Dispositivo</string>
     <string name="enrollment_hint">Cole o token de enrollment</string>
     <string name="enroll_button">Registrar Dispositivo</string>
     <string name="status_enrolled">Dispositivo registrado com sucesso</string>
-    <string name="status_active">MDM Agent ativo</string>
-    <string name="accessibility_home_label">MDM Agent — botão Início</string>
+    <string name="status_active">Arezzo Device Manager ativo</string>
+    <string name="accessibility_home_label">Arezzo Device Manager — botão Início</string>
     <string name="accessibility_home_description">Mostra o botão flutuante de início sobre os aplicativos, para voltar ao kiosk sem depender de botões físicos.</string>
 </resources>

@@ -58,8 +58,8 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   const drawer = (
     <Box>
       <Toolbar>
-        <Typography variant="h6" noWrap sx={{ fontWeight: 'bold' }}>
-          MDM
+        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
+          Arezzo Device Manager
         </Typography>
       </Toolbar>
       <List>
@@ -97,7 +97,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
             <MenuIcon />
           </IconButton>
           <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
-            Android MDM - Gerenciamento de Dispositivos
+            Arezzo Device Manager
           </Typography>
           <IconButton
             color="inherit"
