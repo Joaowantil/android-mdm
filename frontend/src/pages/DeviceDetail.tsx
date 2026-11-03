@@ -296,7 +296,7 @@ export default function DeviceDetail() {
               <Grid container spacing={2}>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">ID do Dispositivo</Typography>
-                  <Typography>{device.asset_id || `MDM-${device.id}`}</Typography>
+                  <Typography>{device.asset_id || `ARZ-${device.id}`}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">UUID</Typography>

@@ -165,7 +165,7 @@ export default function Devices() {
           setEnrollDeviceId(null)
           setAlert({
             type: 'success',
-            message: `Dispositivo ${enrolled.asset_id || `MDM-${enrolled.id}`} registrado`,
+            message: `Dispositivo ${enrolled.asset_id || `ARZ-${enrolled.id}`} registrado`,
           })
         }
       } catch (err) {
@@ -305,7 +305,7 @@ export default function Devices() {
   }
 
   const deleteDevice = async (device: Device) => {
-    const label = device.asset_id || `MDM-${device.id}`
+    const label = device.asset_id || `ARZ-${device.id}`
     if (device.is_online) {
       if (
         !confirm(
@@ -516,7 +516,7 @@ export default function Devices() {
                         />
                       </TableCell>
                       <TableCell>
-                        <Chip label={device.asset_id || `MDM-${device.id}`} size="small" variant="outlined" />
+                        <Chip label={device.asset_id || `ARZ-${device.id}`} size="small" variant="outlined" />
                       </TableCell>
                       <TableCell>
                         {device.name || device.device_id.slice(0, 12)}

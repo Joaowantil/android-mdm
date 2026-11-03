@@ -43,7 +43,7 @@ class DeviceMessageRequest(BaseModel):
 
 def asset_id_from_pk(pk: int) -> str:
     """Human-friendly device identifier derived from the primary key."""
-    return f"MDM-{pk:04d}"
+    return f"ARZ-{pk:04d}"
 
 
 class DeviceResponse(BaseModel):
