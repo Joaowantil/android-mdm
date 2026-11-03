@@ -55,7 +55,7 @@ export default function Login({ onLogin }: LoginProps) {
             <Box sx={{ textAlign: 'center', mb: 3 }}>
               <PhoneIcon sx={{ fontSize: 48, color: 'primary.main' }} />
               <Typography variant="h5" sx={{ mt: 1, fontWeight: 'bold' }}>
-                Android MDM
+                Arezzo Device Manager
               </Typography>
               <Typography variant="body2" color="text.secondary">
                 Gerenciamento de Dispositivos Móveis

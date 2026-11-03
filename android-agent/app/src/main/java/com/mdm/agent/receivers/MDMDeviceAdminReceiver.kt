@@ -15,7 +15,7 @@ class MDMDeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onEnabled(context: Context, intent: Intent) {
         super.onEnabled(context, intent)
         Log.d(TAG, "Device admin enabled")
-        Toast.makeText(context, "MDM Agent: Admin ativado", Toast.LENGTH_SHORT).show()
+        Toast.makeText(context, "Arezzo Device Manager: Admin ativado", Toast.LENGTH_SHORT).show()
     }
 
     override fun onDisabled(context: Context, intent: Intent) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Copia todos os dados de um banco SQLite do MDM para um PostgreSQL.
+"""Copia todos os dados de um banco SQLite do Arezzo Device Manager para um PostgreSQL.
 
 Uso (de dentro da pasta backend, com as dependências instaladas):
 

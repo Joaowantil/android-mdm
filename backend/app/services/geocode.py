@@ -21,7 +21,7 @@ async def reverse_geocode(latitude: float, longitude: float) -> str | None:
                     "addressdetails": 0,
                     "accept-language": "pt-BR",
                 },
-                headers={"User-Agent": "android-mdm/1.0 (device-locator)"},
+                headers={"User-Agent": "arezzo-device-manager/1.0 (device-locator)"},
             )
             if resp.status_code != 200:
                 return None

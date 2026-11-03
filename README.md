@@ -1,4 +1,4 @@
-# Android MDM (Mobile Device Management)
+# Arezzo Device Manager
 
 A complete Mobile Device Management solution for Android devices, similar to ManageEngine MDM.
 
@@ -79,7 +79,7 @@ android-mdm/
 │   │   ├── services/    # API client
 │   │   └── types/       # TypeScript types
 │   └── package.json
-└── android-agent/       # Android MDM agent app
+└── android-agent/       # Arezzo Device Manager agent app (Android)
     └── app/src/main/
         └── java/com/mdm/agent/
 ```

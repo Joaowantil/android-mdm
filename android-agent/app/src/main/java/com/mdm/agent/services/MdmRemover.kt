@@ -11,11 +11,11 @@ import com.mdm.agent.receivers.MDMDeviceAdminReceiver
 import com.mdm.agent.ui.KioskActivity
 
 /**
- * Shared teardown used to unbind the MDM Agent from a device: leaves kiosk,
+ * Shared teardown used to unbind the Arezzo Device Manager app from a device: leaves kiosk,
  * stops background work and releases Device Owner / device admin so the app can
  * be uninstalled and the device used normally again.
  *
- * Used both by the in-app "Remover MDM" button and by the remote `release`
+ * Used both by the in-app "Remover Arezzo Device Manager" button and by the remote `release`
  * command sent when a device is deleted from the dashboard.
  *
  * @return true if the app is no longer Device Owner nor active admin afterwards.

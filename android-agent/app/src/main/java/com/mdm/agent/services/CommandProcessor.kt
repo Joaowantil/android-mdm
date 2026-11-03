@@ -298,7 +298,7 @@ object CommandProcessor {
             val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             val channel = NotificationChannel(
                 CONTROL_CHANNEL_ID,
-                "MDM Controle",
+                "Arezzo Device Manager - Controle",
                 NotificationManager.IMPORTANCE_HIGH
             )
             manager.createNotificationChannel(channel)

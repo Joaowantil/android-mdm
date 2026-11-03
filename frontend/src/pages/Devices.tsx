@@ -309,7 +309,7 @@ export default function Devices() {
     if (device.is_online) {
       if (
         !confirm(
-          `Remover ${label}?\n\nO MDM será desvinculado do aparelho (sai do kiosk, remove o Device Owner) e ele volta ao uso normal. O dispositivo será removido da lista assim que confirmar.`
+          `Remover ${label}?\n\nO Arezzo Device Manager será desvinculado do aparelho (sai do kiosk, remove o Device Owner) e ele volta ao uso normal. O dispositivo será removido da lista assim que confirmar.`
         )
       )
         return
@@ -344,7 +344,7 @@ export default function Devices() {
     } else {
       if (
         !confirm(
-          `${label} está offline — não dá para desvincular o MDM remotamente agora.\n\nRemover apenas o registro do painel? O aparelho continuará como Device Owner até ser liberado pelo app (botão "Remover MDM") ou via adb.`
+          `${label} está offline — não dá para desvincular o Arezzo Device Manager remotamente agora.\n\nRemover apenas o registro do painel? O aparelho continuará como Device Owner até ser liberado pelo app (botão "Remover Arezzo Device Manager") ou via adb.`
         )
       )
         return
@@ -352,7 +352,7 @@ export default function Devices() {
         await api.delete(`/devices/${device.id}?force=true`)
         setAlert({
           type: 'success',
-          message: 'Registro removido. Libere o aparelho pelo app (Remover MDM) ou via adb.',
+          message: 'Registro removido. Libere o aparelho pelo app (Remover Arezzo Device Manager) ou via adb.',
         })
         loadDevices()
       } catch (err) {
@@ -638,7 +638,7 @@ export default function Devices() {
         <DialogTitle>Token de Enrollment</DialogTitle>
         <DialogContent>
           <Typography gutterBottom>
-            Escaneie o QR Code no app do agente MDM (botão "Escanear QR") ou use o token abaixo:
+            Escaneie o QR Code no app Arezzo Device Manager (botão "Escanear QR") ou use o token abaixo:
           </Typography>
           {enrollToken && (
             <Box sx={{ display: 'flex', justifyContent: 'center', my: 2 }}>
