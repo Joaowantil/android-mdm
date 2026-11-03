@@ -1,5 +1,6 @@
 import { createContext, useContext, useMemo, useState, type ReactNode } from 'react'
-import { ThemeProvider, createTheme, CssBaseline } from '@mui/material'
+import { ThemeProvider, CssBaseline } from '@mui/material'
+import { createAppTheme } from '../theme'
 
 type Mode = 'light' | 'dark'
 
@@ -32,19 +33,7 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
     })
   }
 
-  const theme = useMemo(
-    () =>
-      createTheme({
-        palette: {
-          mode,
-          primary: { main: '#1976d2' },
-          secondary: { main: '#dc004e' },
-          background:
-            mode === 'light' ? { default: '#f5f5f5' } : { default: '#121212', paper: '#1e1e1e' },
-        },
-      }),
-    [mode]
-  )
+  const theme = useMemo(() => createAppTheme(mode), [mode])
 
   return (
     <ThemeModeContext.Provider value={{ mode, toggleMode }}>

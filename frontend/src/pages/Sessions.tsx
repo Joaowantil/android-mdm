@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import {
   Box,
   Card,
-  Typography,
   Table,
   TableBody,
   TableCell,
@@ -16,7 +15,9 @@ import {
 } from '@mui/material'
 import { Logout as RevokeIcon } from '@mui/icons-material'
 import api from '../services/api'
+import PageHeader from '../components/PageHeader'
 import { getErrorMessage } from '../utils/errors'
+import { formatDateTime } from '../utils/time'
 
 interface SessionEntry {
   id: number
@@ -79,14 +80,7 @@ export default function SessionsPage() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Sessões ativas
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Todos os logins ativos no painel agora. Revogar uma sessão desconecta
-        a pessoa imediatamente, sem esperar o token expirar sozinho - útil se
-        um notebook for roubado ou alguém sair da empresa.
-      </Typography>
+      <PageHeader title="Sessões ativas" subtitle={'Todos os logins ativos no painel agora. Revogar desconecta a pessoa na hora, sem esperar o token expirar: útil se um notebook for roubado ou alguém sair da empresa.'} />
 
       {alert && (
         <Alert severity={alert.type} onClose={() => setAlert(null)} sx={{ mb: 2 }}>
@@ -117,10 +111,10 @@ export default function SessionsPage() {
                     )}
                   </TableCell>
                   <TableCell>
-                    {s.created_at ? new Date(s.created_at).toLocaleString('pt-BR') : '-'}
+                    {formatDateTime(s.created_at, true)}
                   </TableCell>
                   <TableCell>
-                    {s.last_seen_at ? new Date(s.last_seen_at).toLocaleString('pt-BR') : '-'}
+                    {formatDateTime(s.last_seen_at, true)}
                   </TableCell>
                   <TableCell>{s.ip_address || '-'}</TableCell>
                   <TableCell>{shortUserAgent(s.user_agent)}</TableCell>

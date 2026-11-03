@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react'
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Table,
   TableBody,
@@ -16,7 +15,6 @@ import {
   DialogContent,
   DialogActions,
   TextField,
-  Chip,
   IconButton,
   Alert,
   Tooltip,
@@ -27,6 +25,7 @@ import {
 } from '@mui/material'
 import { Add, Delete, Edit, Devices as DevicesIcon } from '@mui/icons-material'
 import api from '../services/api'
+import PageHeader from '../components/PageHeader'
 import { getErrorMessage } from '../utils/errors'
 import { Group, Device } from '../types'
 
@@ -119,12 +118,15 @@ export default function Groups() {
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4">Grupos / Operações</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
-          Novo Grupo
-        </Button>
-      </Box>
+      <PageHeader
+        title="Grupos"
+        subtitle="Separe os aparelhos por operação (por exemplo: loja, centro de distribuição, expedição)"
+        actions={
+          <Button variant="contained" startIcon={<Add />} onClick={openCreate}>
+            Novo grupo
+          </Button>
+        }
+      />
 
       {alert && (
         <Alert severity={alert.type} onClose={() => setAlert(null)} sx={{ mb: 2 }}>
@@ -133,14 +135,13 @@ export default function Groups() {
       )}
 
       <Card>
-        <CardContent>
           <TableContainer>
             <Table>
               <TableHead>
                 <TableRow>
                   <TableCell>Grupo</TableCell>
                   <TableCell>Dispositivos</TableCell>
-                  <TableCell>Ações</TableCell>
+                  <TableCell align="right">Ações</TableCell>
                 </TableRow>
               </TableHead>
               <TableBody>
@@ -159,7 +160,7 @@ export default function Groups() {
                         <Typography fontWeight="medium">{group.name}</Typography>
                       </TableCell>
                       <TableCell>
-                        <Chip label={group.device_count} size="small" variant="outlined" />
+                        <Typography variant="body2" sx={{ fontWeight: 600 }}>{group.device_count} {group.device_count === 1 ? 'dispositivo' : 'dispositivos'}</Typography>
                       </TableCell>
                       <TableCell>
                         <Tooltip title="Gerenciar dispositivos">
@@ -173,7 +174,7 @@ export default function Groups() {
                           </IconButton>
                         </Tooltip>
                         <Tooltip title="Excluir">
-                          <IconButton size="small" color="error" onClick={() => deleteGroup(group)}>
+                          <IconButton size="small" onClick={() => deleteGroup(group)} aria-label="Excluir grupo" sx={{ color: 'text.secondary', '&:hover': { color: 'error.main' } }}>
                             <Delete />
                           </IconButton>
                         </Tooltip>
@@ -184,7 +185,6 @@ export default function Groups() {
               </TableBody>
             </Table>
           </TableContainer>
-        </CardContent>
       </Card>
 
       <Dialog open={dialogOpen} onClose={() => setDialogOpen(false)} maxWidth="xs" fullWidth>

@@ -3,7 +3,6 @@ import { useNavigate, useSearchParams } from 'react-router-dom'
 import {
   Box,
   Card,
-  CardContent,
   Typography,
   Table,
   TableBody,
@@ -11,7 +10,6 @@ import {
   TableContainer,
   TableHead,
   TableRow,
-  Chip,
   IconButton,
   Button,
   Dialog,
@@ -22,12 +20,18 @@ import {
   Tooltip,
   Select,
   MenuItem,
+  Menu,
   FormControl,
   InputLabel,
-  Stack,
   TextField,
   Checkbox,
   Toolbar,
+  Divider,
+  InputAdornment,
+  ListItemIcon,
+  TablePagination,
+  useMediaQuery,
+  useTheme,
 } from '@mui/material'
 import { SelectChangeEvent } from '@mui/material/Select'
 import {
@@ -40,11 +44,15 @@ import {
   RestartAlt,
   Message,
   Download,
+  MoreVert,
+  Search,
 } from '@mui/icons-material'
 import { QRCodeCanvas } from 'qrcode.react'
 import api from '../services/api'
 import { Device, Group } from '../types'
-import { lastOnlineText } from '../utils/time'
+import PageHeader from '../components/PageHeader'
+import BatteryIndicator from '../components/BatteryIndicator'
+import { StatusChip, OnlineIndicator } from '../components/StatusChip'
 import { getErrorMessage } from '../utils/errors'
 import { exportToCsv } from '../utils/csv'
 
@@ -122,6 +130,8 @@ export default function Devices() {
         return false
       if (query) {
         const haystack = [
+          d.name,
+          groupName(d.group_id),
           d.asset_id,
           d.device_id,
           d.model,
@@ -136,7 +146,7 @@ export default function Devices() {
       }
       return true
     })
-  }, [devices, statusFilter, groupFilter, searchText])
+  }, [devices, groups, statusFilter, groupFilter, searchText])
 
   const generateToken = async () => {
     try {
@@ -361,68 +371,112 @@ export default function Devices() {
     }
   }
 
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'active':
-      case 'enrolled':
-        return 'success'
-      case 'locked':
-      case 'releasing':
-        return 'warning'
-      case 'wiped':
-        return 'error'
-      default:
-        return 'default'
-    }
-  }
+  const theme = useTheme()
+  const isMobile = useMediaQuery(theme.breakpoints.down('md'))
+  const [page, setPage] = useState(0)
+  const [rowsPerPage, setRowsPerPage] = useState(25)
+  const [menu, setMenu] = useState<{ anchor: HTMLElement; device: Device } | null>(null)
+
+  // Voltar para a primeira página quando o filtro muda.
+  useEffect(() => {
+    setPage(0)
+  }, [statusFilter, groupFilter, searchText])
+
+  const maxPage = Math.max(0, Math.ceil(filteredDevices.length / rowsPerPage) - 1)
+  const safePage = Math.min(page, maxPage)
+  const pageDevices = filteredDevices.slice(safePage * rowsPerPage, safePage * rowsPerPage + rowsPerPage)
+
+  const displayName = (d: Device) =>
+    d.name ||
+    (d.status === 'pending' ? 'Aguardando cadastro no aparelho' : [d.manufacturer, d.model].filter(Boolean).join(' ')) ||
+    d.device_id.slice(0, 8)
+  const subtitle = (d: Device) =>
+    [
+      d.asset_id || `ARZ-${d.id}`,
+      // Sem nome cadastrado o modelo já é o título; não repetir.
+      d.name ? [d.manufacturer, d.model].filter(Boolean).join(' ') : null,
+      d.os_version ? `Android ${d.os_version}` : null,
+    ]
+      .filter(Boolean)
+      .join(' · ')
+
+  const closeMenu = () => setMenu(null)
+  const stop = (e: React.SyntheticEvent) => e.stopPropagation()
+
+  const groupSelect = (device: Device) => (
+    <Select
+      size="small"
+      variant="standard"
+      disableUnderline
+      displayEmpty
+      value={device.group_id != null ? String(device.group_id) : ''}
+      onClick={stop}
+      onChange={(e: SelectChangeEvent) => assignGroup(device, e.target.value ? Number(e.target.value) : null)}
+      renderValue={(v) =>
+        v ? groupName(Number(v)) || '-' : <Typography component="span" variant="body2" sx={{ color: 'text.disabled' }}>Sem grupo</Typography>
+      }
+      sx={{ fontSize: '0.875rem', width: 200, borderRadius: 1, '& .MuiSelect-select': { py: 0.5, pl: 1 }, '&:hover': { bgcolor: 'action.hover' } }}
+    >
+      <MenuItem value="">
+        <em>Sem grupo</em>
+      </MenuItem>
+      {groups.map((g) => (
+        <MenuItem key={g.id} value={String(g.id)}>
+          {g.name}
+        </MenuItem>
+      ))}
+    </Select>
+  )
+
+  const actionsButton = (device: Device) => (
+    <Tooltip title="Ações">
+      <IconButton size="small" onClick={(e) => { stop(e); setMenu({ anchor: e.currentTarget, device }) }} aria-label={`Ações de ${displayName(device)}`}>
+        <MoreVert fontSize="small" />
+      </IconButton>
+    </Tooltip>
+  )
+
+  const isPending = (d: Device) => d.status === 'pending'
 
   return (
     <Box>
-      <Box sx={{ display: 'flex', justifyContent: 'space-between', mb: 3 }}>
-        <Typography variant="h4">Dispositivos</Typography>
-        <Button variant="contained" startIcon={<Add />} onClick={generateToken}>
-          Novo Enrollment
-        </Button>
-      </Box>
+      <PageHeader
+        title="Dispositivos"
+        subtitle={`${devices.length} ${devices.length === 1 ? 'dispositivo' : 'dispositivos'} · ${devices.filter((d) => d.is_online).length} online`}
+        actions={
+          <Button variant="contained" startIcon={<Add />} onClick={generateToken}>
+            Cadastrar dispositivo
+          </Button>
+        }
+      />
 
       {alert && (
-        <Alert
-          severity={alert.type}
-          onClose={() => setAlert(null)}
-          sx={{ mb: 2 }}
-        >
+        <Alert severity={alert.type} onClose={() => setAlert(null)} sx={{ mb: 2 }}>
           {alert.message}
         </Alert>
       )}
 
-      <Stack direction="row" spacing={2} sx={{ mb: 2 }} flexWrap="wrap" alignItems="center">
+      <Box sx={{ display: 'flex', flexWrap: 'wrap', gap: 1.5, mb: 2, alignItems: 'center' }}>
         <TextField
           size="small"
-          placeholder="Buscar por nome, modelo, série, wifi..."
+          placeholder="Buscar por nome, ID, modelo, série ou Wi-Fi"
           value={searchText}
           onChange={(e) => setSearchText(e.target.value)}
-          sx={{ minWidth: 260 }}
+          sx={{ flex: '1 1 280px', maxWidth: 420, bgcolor: 'background.paper' }}
+          InputProps={{ startAdornment: (<InputAdornment position="start"><Search fontSize="small" /></InputAdornment>) }}
         />
-        <FormControl size="small" sx={{ minWidth: 160 }}>
-          <InputLabel>Status</InputLabel>
-          <Select
-            label="Status"
-            value={statusFilter}
-            onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value)}
-          >
-            <MenuItem value="all">Todos</MenuItem>
+        <FormControl size="small" sx={{ minWidth: 150, bgcolor: 'background.paper' }}>
+          <InputLabel>Situação</InputLabel>
+          <Select label="Situação" value={statusFilter} onChange={(e: SelectChangeEvent) => setStatusFilter(e.target.value)}>
+            <MenuItem value="all">Todas</MenuItem>
             <MenuItem value="online">Online</MenuItem>
             <MenuItem value="offline">Offline</MenuItem>
             <MenuItem value="locked">Bloqueados</MenuItem>
           </Select>
         </FormControl>
-        <FormControl size="small" sx={{ minWidth: 180 }}>
+        <FormControl size="small" sx={{ minWidth: 180, bgcolor: 'background.paper' }}>
           <InputLabel>Grupo</InputLabel>
-          <Select
-            label="Grupo"
-            value={groupFilter}
-            onChange={(e: SelectChangeEvent) => setGroupFilter(e.target.value)}
-          >
+          <Select label="Grupo" value={groupFilter} onChange={(e: SelectChangeEvent) => setGroupFilter(e.target.value)}>
             <MenuItem value="all">Todos os grupos</MenuItem>
             <MenuItem value="none">Sem grupo</MenuItem>
             {groups.map((g) => (
@@ -432,49 +486,63 @@ export default function Devices() {
             ))}
           </Select>
         </FormControl>
-        <Button
-          variant="outlined"
-          size="small"
-          startIcon={<Download />}
-          onClick={exportDevicesCsv}
-          disabled={filteredDevices.length === 0}
-        >
+        <Box sx={{ flexGrow: 1 }} />
+        <Button variant="outlined" color="inherit" size="small" startIcon={<Download />} onClick={exportDevicesCsv} disabled={filteredDevices.length === 0} sx={{ borderColor: 'divider' }}>
           Exportar CSV
         </Button>
-      </Stack>
+      </Box>
 
       {selected.length > 0 && (
         <Toolbar
-          sx={{
-            mb: 2,
-            bgcolor: 'action.selected',
-            borderRadius: 1,
-            display: 'flex',
-            gap: 1,
-          }}
+          variant="dense"
+          sx={{ mb: 2, borderRadius: 2, gap: 1, flexWrap: 'wrap', bgcolor: 'primary.main', color: 'primary.contrastText' }}
         >
-          <Typography sx={{ flex: 1 }} variant="subtitle2">
+          <Typography sx={{ flex: 1, fontWeight: 700 }} variant="subtitle2">
             {selected.length} selecionado(s)
           </Typography>
-          <Button size="small" startIcon={<RestartAlt />} onClick={bulkReboot}>
-            Reiniciar
-          </Button>
-          <Button size="small" startIcon={<Lock />} onClick={bulkLock}>
-            Bloquear
-          </Button>
-          <Button size="small" startIcon={<Message />} onClick={() => setBulkMessageOpen(true)}>
-            Mensagem
-          </Button>
-          <Button size="small" onClick={() => setSelected([])}>
-            Limpar seleção
-          </Button>
+          <Button size="small" color="inherit" startIcon={<RestartAlt />} onClick={bulkReboot}>Reiniciar</Button>
+          <Button size="small" color="inherit" startIcon={<Lock />} onClick={bulkLock}>Bloquear</Button>
+          <Button size="small" color="inherit" startIcon={<Message />} onClick={() => setBulkMessageOpen(true)}>Mensagem</Button>
+          <Button size="small" color="inherit" onClick={() => setSelected([])}>Limpar seleção</Button>
         </Toolbar>
       )}
 
       <Card>
-        <CardContent>
+        {filteredDevices.length === 0 ? (
+          <Box sx={{ py: 8, textAlign: 'center' }}>
+            <Typography sx={{ fontWeight: 600 }}>Nenhum dispositivo encontrado</Typography>
+            <Typography variant="body2" color="text.secondary">
+              {devices.length === 0 ? 'Cadastre o primeiro aparelho pelo botão acima.' : 'Ajuste a busca ou os filtros.'}
+            </Typography>
+          </Box>
+        ) : isMobile ? (
+          <Box>
+            {pageDevices.map((device, i) => (
+              <Box
+                key={device.id}
+                onClick={() => navigate(`/devices/${device.id}`)}
+                sx={{ p: 2, display: 'flex', gap: 1.5, alignItems: 'flex-start', cursor: 'pointer', borderTop: i ? 1 : 0, borderColor: 'divider', bgcolor: selected.includes(device.id) ? 'action.selected' : 'transparent' }}
+              >
+                <Checkbox size="small" sx={{ mt: -0.5, ml: -1 }} checked={selected.includes(device.id)} onClick={stop} onChange={() => toggleSelectOne(device.id)} />
+                <Box sx={{ flex: 1, minWidth: 0 }}>
+                  <Typography noWrap sx={{ fontWeight: 700 }}>{displayName(device)}</Typography>
+                  <Typography noWrap variant="caption" color="text.secondary">{subtitle(device)}</Typography>
+                  <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 1.5, mt: 1 }}>
+                    {!isPending(device) && <OnlineIndicator online={device.is_online} lastSeen={device.last_seen} />}
+                    {device.status !== 'enrolled' && <StatusChip status={device.status} />}
+                    <BatteryIndicator level={device.battery_level} />
+                  </Box>
+                  <Box onClick={stop} sx={{ mt: 0.75, ml: -1 }}>
+                    {groupSelect(device)}
+                  </Box>
+                </Box>
+                {actionsButton(device)}
+              </Box>
+            ))}
+          </Box>
+        ) : (
           <TableContainer>
-            <Table>
+            <Table sx={{ '& td': { py: 1.25 } }}>
               <TableHead>
                 <TableRow>
                   <TableCell padding="checkbox">
@@ -485,154 +553,97 @@ export default function Devices() {
                       onChange={toggleSelectAll}
                     />
                   </TableCell>
-                  <TableCell>ID</TableCell>
                   <TableCell>Dispositivo</TableCell>
                   <TableCell>Grupo</TableCell>
-                  <TableCell>Modelo</TableCell>
-                  <TableCell>Status</TableCell>
-                  <TableCell>Online</TableCell>
-                  <TableCell>Última vez online</TableCell>
+                  <TableCell>Situação</TableCell>
                   <TableCell>Bateria</TableCell>
-                  <TableCell>Ações</TableCell>
+                  <TableCell align="right" />
                 </TableRow>
               </TableHead>
               <TableBody>
-                {filteredDevices.length === 0 ? (
-                  <TableRow>
-                    <TableCell colSpan={10} align="center">
-                      <Typography color="text.secondary">
-                        Nenhum dispositivo
-                      </Typography>
+                {pageDevices.map((device) => (
+                  <TableRow
+                    key={device.id}
+                    hover
+                    selected={selected.includes(device.id)}
+                    onClick={() => navigate(`/devices/${device.id}`)}
+                    sx={{ cursor: 'pointer' }}
+                  >
+                    <TableCell padding="checkbox" onClick={stop}>
+                      <Checkbox size="small" checked={selected.includes(device.id)} onChange={() => toggleSelectOne(device.id)} />
+                    </TableCell>
+                    <TableCell sx={{ maxWidth: 320 }}>
+                      <Typography noWrap sx={{ fontWeight: 600, fontSize: '0.9rem' }}>{displayName(device)}</Typography>
+                      <Typography noWrap variant="caption" color="text.secondary">{subtitle(device)}</Typography>
+                    </TableCell>
+                    <TableCell onClick={stop}>{groupSelect(device)}</TableCell>
+                    <TableCell>
+                      <Box sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: 0.5 }}>
+                        {!isPending(device) && <OnlineIndicator online={device.is_online} lastSeen={device.last_seen} />}
+                        {device.status !== 'enrolled' && <StatusChip status={device.status} />}
+                      </Box>
+                    </TableCell>
+                    <TableCell>
+                      <BatteryIndicator level={device.battery_level} />
+                    </TableCell>
+                    <TableCell align="right" onClick={stop}>
+                      <Tooltip title="Ver detalhes">
+                        <IconButton size="small" onClick={() => navigate(`/devices/${device.id}`)} aria-label="Ver detalhes">
+                          <Visibility fontSize="small" />
+                        </IconButton>
+                      </Tooltip>
+                      {actionsButton(device)}
                     </TableCell>
                   </TableRow>
-                ) : (
-                  filteredDevices.map((device) => (
-                    <TableRow key={device.id} hover selected={selected.includes(device.id)}>
-                      <TableCell padding="checkbox">
-                        <Checkbox
-                          size="small"
-                          checked={selected.includes(device.id)}
-                          onChange={() => toggleSelectOne(device.id)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip label={device.asset_id || `ARZ-${device.id}`} size="small" variant="outlined" />
-                      </TableCell>
-                      <TableCell>
-                        {device.name || device.device_id.slice(0, 12)}
-                      </TableCell>
-                      <TableCell>
-                        <Select
-                          size="small"
-                          variant="standard"
-                          displayEmpty
-                          value={device.group_id != null ? String(device.group_id) : ''}
-                          onChange={(e: SelectChangeEvent) =>
-                            assignGroup(device, e.target.value ? Number(e.target.value) : null)
-                          }
-                          renderValue={(v) =>
-                            v ? groupName(Number(v)) || '-' : <em>Sem grupo</em>
-                          }
-                          sx={{ minWidth: 120 }}
-                        >
-                          <MenuItem value="">
-                            <em>Sem grupo</em>
-                          </MenuItem>
-                          {groups.map((g) => (
-                            <MenuItem key={g.id} value={String(g.id)}>
-                              {g.name}
-                            </MenuItem>
-                          ))}
-                        </Select>
-                      </TableCell>
-                      <TableCell>
-                        {device.manufacturer} {device.model}
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={device.status}
-                          size="small"
-                          color={getStatusColor(device.status)}
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Chip
-                          label={device.is_online ? 'Online' : 'Offline'}
-                          size="small"
-                          color={device.is_online ? 'success' : 'default'}
-                          variant="outlined"
-                        />
-                      </TableCell>
-                      <TableCell>
-                        <Typography variant="body2" color="text.secondary">
-                          {lastOnlineText(device.last_seen)}
-                        </Typography>
-                      </TableCell>
-                      <TableCell>
-                        {device.battery_level != null ? `${device.battery_level}%` : '-'}
-                      </TableCell>
-                      <TableCell>
-                        <Tooltip title="Ver detalhes">
-                          <IconButton
-                            size="small"
-                            onClick={() => navigate(`/devices/${device.id}`)}
-                          >
-                            <Visibility />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Bloquear">
-                          <IconButton
-                            size="small"
-                            onClick={() => lockDevice(device.id)}
-                          >
-                            <Lock />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Reiniciar">
-                          <IconButton
-                            size="small"
-                            onClick={() => rebootDevice(device.id)}
-                          >
-                            <RestartAlt />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Localizar">
-                          <IconButton
-                            size="small"
-                            onClick={() => locateDevice(device.id)}
-                          >
-                            <LocationOn />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Enviar mensagem">
-                          <IconButton
-                            size="small"
-                            onClick={() => {
-                              setMessageTarget(device)
-                              setMessageForm({ title: 'Aviso', message: '' })
-                            }}
-                          >
-                            <Message />
-                          </IconButton>
-                        </Tooltip>
-                        <Tooltip title="Remover">
-                          <IconButton
-                            size="small"
-                            color="error"
-                            onClick={() => deleteDevice(device)}
-                          >
-                            <Delete />
-                          </IconButton>
-                        </Tooltip>
-                      </TableCell>
-                    </TableRow>
-                  ))
-                )}
+                ))}
               </TableBody>
             </Table>
           </TableContainer>
-        </CardContent>
+        )}
+        {filteredDevices.length > 0 && (
+          <TablePagination
+            component="div"
+            count={filteredDevices.length}
+            page={safePage}
+            onPageChange={(_, p) => setPage(p)}
+            rowsPerPage={rowsPerPage}
+            onRowsPerPageChange={(e) => { setRowsPerPage(parseInt(e.target.value, 10)); setPage(0) }}
+            rowsPerPageOptions={[10, 25, 50, 100]}
+            labelRowsPerPage="Por página"
+            labelDisplayedRows={({ from, to, count }) => `${from}–${to} de ${count}`}
+            sx={{ borderTop: 1, borderColor: 'divider' }}
+          />
+        )}
       </Card>
+
+      <Menu
+        anchorEl={menu?.anchor ?? null}
+        open={!!menu}
+        onClose={closeMenu}
+        onClick={stop}
+        slotProps={{ paper: { sx: { minWidth: 210 } } }}
+      >
+        <MenuItem onClick={() => { const d = menu!.device; closeMenu(); navigate(`/devices/${d.id}`) }}>
+          <ListItemIcon><Visibility fontSize="small" /></ListItemIcon>Ver detalhes
+        </MenuItem>
+        <MenuItem onClick={() => { const d = menu!.device; closeMenu(); locateDevice(d.id) }}>
+          <ListItemIcon><LocationOn fontSize="small" /></ListItemIcon>Localizar
+        </MenuItem>
+        <MenuItem onClick={() => { const d = menu!.device; closeMenu(); setMessageTarget(d); setMessageForm({ title: 'Aviso', message: '' }) }}>
+          <ListItemIcon><Message fontSize="small" /></ListItemIcon>Enviar mensagem
+        </MenuItem>
+        <Divider />
+        <MenuItem onClick={() => { const d = menu!.device; closeMenu(); rebootDevice(d.id) }}>
+          <ListItemIcon><RestartAlt fontSize="small" /></ListItemIcon>Reiniciar
+        </MenuItem>
+        <MenuItem onClick={() => { const d = menu!.device; closeMenu(); if (window.confirm('Bloquear este dispositivo agora?')) lockDevice(d.id) }}>
+          <ListItemIcon><Lock fontSize="small" /></ListItemIcon>Bloquear
+        </MenuItem>
+        <Divider />
+        <MenuItem sx={{ color: 'error.main' }} onClick={() => { const d = menu!.device; closeMenu(); deleteDevice(d) }}>
+          <ListItemIcon sx={{ color: 'inherit' }}><Delete fontSize="small" /></ListItemIcon>Remover dispositivo
+        </MenuItem>
+      </Menu>
 
       <Dialog open={enrollDialog} onClose={() => setEnrollDialog(false)}>
         <DialogTitle>Token de Enrollment</DialogTitle>

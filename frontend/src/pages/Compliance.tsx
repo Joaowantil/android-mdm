@@ -4,7 +4,6 @@ import {
   Box,
   Card,
   CardContent,
-  Typography,
   Table,
   TableBody,
   TableCell,
@@ -15,6 +14,7 @@ import {
   Alert,
 } from '@mui/material'
 import api from '../services/api'
+import PageHeader from '../components/PageHeader'
 import { getErrorMessage } from '../utils/errors'
 
 interface Violation {
@@ -44,17 +44,7 @@ export default function CompliancePage() {
 
   return (
     <Box>
-      <Typography variant="h4" gutterBottom>
-        Conformidade de apps
-      </Typography>
-      <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
-        Dispositivos que têm uma política de bloqueio de apps atribuída e
-        reportaram, no último contato, pelo menos um desses apps instalado.
-        Só cobre políticas de <strong>bloqueio</strong> - um relatório
-        equivalente para listas de permissão exigiria uma mudança no agente
-        (hoje o heartbeat reporta todo pacote do sistema, não só os apps que
-        a pessoa realmente usa, o que geraria muito ruído no relatório).
-      </Typography>
+      <PageHeader title="Conformidade de apps" subtitle={<>Aparelhos com uma política de bloqueio de apps que reportaram, no último contato, ao menos um desses apps instalado. Cobre só políticas de <strong>bloqueio</strong>: para listas de permissão o agente precisaria informar só os apps de uso (hoje reporta todos os pacotes do sistema).</>} />
 
       {alert && (
         <Alert severity={alert.type} onClose={() => setAlert(null)} sx={{ mb: 2 }}>

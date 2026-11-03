@@ -7,7 +7,6 @@ import {
   Typography,
   Grid,
   Button,
-  Chip,
   Divider,
   Alert,
   Switch,
@@ -24,6 +23,9 @@ import {
   FormControl,
   IconButton,
   InputAdornment,
+  LinearProgress,
+  alpha,
+  useTheme,
 } from '@mui/material'
 import { SelectChangeEvent } from '@mui/material/Select'
 import {
@@ -34,10 +36,17 @@ import {
   CleaningServices,
   Visibility,
   VisibilityOff,
+  RestartAlt,
+  Message,
 } from '@mui/icons-material'
 import api from '../services/api'
 import { Device, Group } from '../types'
-import { lastOnlineText } from '../utils/time'
+import { relativeTime, formatDateTime } from '../utils/time'
+import { getErrorMessage } from '../utils/errors'
+import { StatusChip, OnlineIndicator } from '../components/StatusChip'
+import BatteryIndicator from '../components/BatteryIndicator'
+
+const formatMB = (mb: number) => (mb >= 1024 ? `${(mb / 1024).toFixed(1)} GB` : `${mb} MB`)
 
 function parseWebLinks(raw: string): { label: string; url: string }[] {
   return raw
@@ -75,6 +84,11 @@ export default function DeviceDetail() {
   const [lockDialogOpen, setLockDialogOpen] = useState(false)
   const [lockPin, setLockPin] = useState('')
   const [locating, setLocating] = useState(false)
+  const theme = useTheme()
+  const [messageOpen, setMessageOpen] = useState(false)
+  const [messageForm, setMessageForm] = useState({ title: 'Aviso', message: '' })
+  const [wipeOpen, setWipeOpen] = useState(false)
+  const [wipeText, setWipeText] = useState('')
   const [groups, setGroups] = useState<Group[]>([])
   const prevLocRef = useRef<string | null>(null)
 
@@ -188,13 +202,35 @@ export default function DeviceDetail() {
   }
 
   const wipeDevice = async () => {
-    if (!confirm('ATENÇÃO: Isso apagará TODOS os dados do dispositivo. Continuar?')) return
     try {
       await api.post(`/devices/${id}/wipe`)
       setAlert({ type: 'success', message: 'Comando de wipe enviado' })
+      setWipeOpen(false)
+      setWipeText('')
       loadDevice()
     } catch (err) {
       setAlert({ type: 'error', message: 'Falha ao executar wipe' })
+    }
+  }
+
+  const rebootDevice = async () => {
+    if (!window.confirm('Reiniciar este dispositivo agora?')) return
+    try {
+      await api.post(`/devices/${id}/reboot`)
+      setAlert({ type: 'success', message: 'Comando de reinicialização enviado' })
+    } catch (err) {
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao reiniciar dispositivo') })
+    }
+  }
+
+  const sendMessage = async () => {
+    try {
+      await api.post(`/devices/${id}/message`, messageForm)
+      setAlert({ type: 'success', message: 'Mensagem enviada ao dispositivo' })
+      setMessageOpen(false)
+      setMessageForm({ title: 'Aviso', message: '' })
+    } catch (err) {
+      setAlert({ type: 'error', message: getErrorMessage(err, 'Falha ao enviar mensagem') })
     }
   }
 
@@ -269,10 +305,18 @@ export default function DeviceDetail() {
 
   if (!device) return <Typography>Carregando...</Typography>
 
+  const remoteActions = [
+    { label: locating ? 'Localizando...' : 'Localizar', icon: locating ? <CircularProgress size={16} /> : <LocationOn />, onClick: locateDevice, disabled: locating },
+    { label: 'Enviar mensagem', icon: <Message />, onClick: () => setMessageOpen(true) },
+    { label: 'Reiniciar', icon: <RestartAlt />, onClick: rebootDevice },
+    { label: 'Bloquear', icon: <Lock />, onClick: () => setLockDialogOpen(true) },
+    { label: 'Limpar cache do navegador', icon: <CleaningServices />, onClick: clearWebCache },
+  ]
+
   return (
     <Box>
-      <Button startIcon={<ArrowBack />} onClick={() => navigate('/devices')} sx={{ mb: 2 }}>
-        Voltar
+      <Button startIcon={<ArrowBack />} color="inherit" onClick={() => navigate('/devices')} sx={{ mb: 1, ml: -1, color: 'text.secondary' }}>
+        Dispositivos
       </Button>
 
       {alert && (
@@ -281,10 +325,37 @@ export default function DeviceDetail() {
         </Alert>
       )}
 
-      <Typography variant="h4" gutterBottom>
-        {device.asset_id ? `${device.asset_id} · ` : ''}
-        {device.name || device.model || device.device_id}
-      </Typography>
+      <Box sx={{ mb: 3 }}>
+        <Typography variant="h4" component="h1">
+          {device.name || [device.manufacturer, device.model].filter(Boolean).join(' ') || device.device_id}
+        </Typography>
+        <Box sx={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: { xs: 1.5, sm: 2.5 }, mt: 1 }}>
+          <Typography variant="body2" color="text.secondary" sx={{ fontWeight: 600 }}>
+            {device.asset_id || `ARZ-${device.id}`}
+          </Typography>
+          {device.status !== 'pending' && <OnlineIndicator online={device.is_online} lastSeen={device.last_seen} />}
+          <StatusChip status={device.status} />
+          <BatteryIndicator level={device.battery_level} />
+        </Box>
+      </Box>
+
+      {/* No celular as ações ficam logo abaixo do cabeçalho; no desktop, no cartão da direita. */}
+      <Box sx={{ display: { xs: 'flex', md: 'none' }, gap: 1, overflowX: 'auto', pb: 1, mb: 2, mx: -2, px: 2 }}>
+        {remoteActions.map((a) => (
+          <Button
+            key={a.label}
+            size="small"
+            variant="outlined"
+            color="inherit"
+            startIcon={a.icon}
+            onClick={a.onClick}
+            disabled={a.disabled}
+            sx={{ flexShrink: 0, whiteSpace: 'nowrap', borderColor: 'divider', bgcolor: 'background.paper' }}
+          >
+            {a.label}
+          </Button>
+        ))}
+      </Box>
 
       <Grid container spacing={3}>
         <Grid item xs={12} md={8}>
@@ -300,7 +371,7 @@ export default function DeviceDetail() {
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">UUID</Typography>
-                  <Typography sx={{ wordBreak: 'break-all', fontSize: '0.8rem' }}>{device.device_id}</Typography>
+                  <Typography sx={{ wordBreak: 'break-all', fontSize: '0.85rem', fontFamily: 'ui-monospace, Menlo, Consolas, monospace' }}>{device.device_id}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">Modelo</Typography>
@@ -315,24 +386,26 @@ export default function DeviceDetail() {
                   <Typography>{device.serial_number || 'N/A'}</Typography>
                 </Grid>
                 <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">Status</Typography>
-                  <Chip label={device.status} color={device.status === 'enrolled' ? 'success' : 'default'} size="small" />
-                </Grid>
-                <Grid item xs={6}>
-                  <Typography variant="body2" color="text.secondary">Bateria</Typography>
-                  <Typography>{device.battery_level != null ? `${device.battery_level}%` : 'N/A'}</Typography>
-                </Grid>
-                <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">Armazenamento</Typography>
-                  <Typography>
-                    {device.storage_free != null && device.storage_total != null
-                      ? `${device.storage_free}MB livre / ${device.storage_total}MB total`
-                      : 'N/A'}
-                  </Typography>
+{device.storage_free != null && device.storage_total != null && device.storage_total > 0 ? (
+                    <Box>
+                      <LinearProgress
+                        variant="determinate"
+                        value={Math.round(((device.storage_total - device.storage_free) / device.storage_total) * 100)}
+                        sx={{ height: 6, borderRadius: 3, my: 0.75, maxWidth: 220 }}
+                      />
+                      <Typography variant="body2">
+                        {formatMB(device.storage_free)} livres de {formatMB(device.storage_total)}
+                      </Typography>
+                    </Box>
+                  ) : (
+                    <Typography>N/A</Typography>
+                  )}
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">Última vez online</Typography>
-                  <Typography>{lastOnlineText(device.last_seen)}</Typography>
+                  <Typography>{relativeTime(device.last_seen)}</Typography>
+                  <Typography variant="caption" color="text.secondary">{formatDateTime(device.last_seen, true)}</Typography>
                 </Grid>
                 <Grid item xs={6}>
                   <Typography variant="body2" color="text.secondary">Rede Wi-Fi</Typography>
@@ -512,49 +585,41 @@ export default function DeviceDetail() {
         </Grid>
 
         <Grid item xs={12} md={4}>
-          <Card>
+          <Card sx={{ display: { xs: 'none', md: 'block' } }}>
             <CardContent>
               <Typography variant="h6" gutterBottom>
-                Ações Remotas
+                Ações remotas
               </Typography>
-              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2 }}>
-                <Button
-                  variant="contained"
-                  color="warning"
-                  startIcon={<Lock />}
-                  onClick={() => setLockDialogOpen(true)}
-                  fullWidth
-                >
-                  Bloquear Dispositivo
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={locating ? <CircularProgress size={16} /> : <LocationOn />}
-                  onClick={locateDevice}
-                  disabled={locating}
-                  fullWidth
-                >
-                  {locating ? 'Localizando...' : 'Localizar Dispositivo'}
-                </Button>
-                <Button
-                  variant="outlined"
-                  startIcon={<CleaningServices />}
-                  onClick={clearWebCache}
-                  fullWidth
-                >
-                  Limpar Cache do Navegador
-                </Button>
-                <Divider />
-                <Button
-                  variant="contained"
-                  color="error"
-                  startIcon={<DeleteForever />}
-                  onClick={wipeDevice}
-                  fullWidth
-                >
-                  Wipe (Apagar Tudo)
-                </Button>
+              <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1 }}>
+                {remoteActions.map((a) => (
+                  <Button
+                    key={a.label}
+                    variant="outlined"
+                    color="inherit"
+                    startIcon={a.icon}
+                    onClick={a.onClick}
+                    disabled={a.disabled}
+                    fullWidth
+                    sx={{ justifyContent: 'flex-start', borderColor: 'divider', py: 1 }}
+                  >
+                    {a.label}
+                  </Button>
+                ))}
               </Box>
+            </CardContent>
+          </Card>
+
+          <Card sx={{ mt: { xs: 0, md: 2 }, borderColor: alpha(theme.palette.error.main, 0.5) }}>
+            <CardContent>
+              <Typography variant="h6" gutterBottom sx={{ color: 'error.main' }}>
+                Zona de perigo
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+                Apaga todos os dados do aparelho e o devolve às configurações de fábrica. Não dá para desfazer.
+              </Typography>
+              <Button variant="outlined" color="error" startIcon={<DeleteForever />} onClick={() => setWipeOpen(true)} fullWidth>
+                Apagar dados (wipe)
+              </Button>
             </CardContent>
           </Card>
         </Grid>
@@ -581,6 +646,58 @@ export default function DeviceDetail() {
           <Button onClick={() => setLockDialogOpen(false)}>Cancelar</Button>
           <Button variant="contained" color="warning" onClick={lockDevice}>
             Bloquear
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={messageOpen} onClose={() => setMessageOpen(false)} maxWidth="sm" fullWidth>
+        <DialogTitle>Enviar mensagem ao dispositivo</DialogTitle>
+        <DialogContent>
+          <Typography variant="body2" color="text.secondary" sx={{ mb: 2 }}>
+            A mensagem aparece como um pop-up na tela do aparelho, mesmo se ele estiver em modo kiosk.
+          </Typography>
+          <TextField fullWidth label="Título" value={messageForm.title} onChange={(e) => setMessageForm({ ...messageForm, title: e.target.value })} margin="normal" inputProps={{ maxLength: 100 }} />
+          <TextField
+            fullWidth
+            label="Mensagem"
+            value={messageForm.message}
+            onChange={(e) => setMessageForm({ ...messageForm, message: e.target.value })}
+            margin="normal"
+            multiline
+            rows={3}
+            required
+            inputProps={{ maxLength: 500 }}
+            helperText={`${messageForm.message.length}/500`}
+          />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setMessageOpen(false)}>Cancelar</Button>
+          <Button variant="contained" onClick={sendMessage} disabled={!messageForm.message.trim()}>
+            Enviar
+          </Button>
+        </DialogActions>
+      </Dialog>
+
+      <Dialog open={wipeOpen} onClose={() => { setWipeOpen(false); setWipeText('') }} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ color: 'error.main' }}>Apagar todos os dados?</DialogTitle>
+        <DialogContent>
+          <Alert severity="error" sx={{ mb: 2 }}>
+            Isso apaga TODOS os dados de {device.name || device.asset_id || 'este dispositivo'} e não pode ser desfeito.
+          </Alert>
+          <Typography variant="body2" sx={{ mb: 1 }}>
+            Para confirmar, digite <strong>{device.asset_id || `ARZ-${device.id}`}</strong>:
+          </Typography>
+          <TextField fullWidth autoFocus size="small" value={wipeText} onChange={(e) => setWipeText(e.target.value)} />
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => { setWipeOpen(false); setWipeText('') }}>Cancelar</Button>
+          <Button
+            variant="contained"
+            color="error"
+            onClick={wipeDevice}
+            disabled={wipeText.trim().toUpperCase() !== (device.asset_id || `ARZ-${device.id}`).toUpperCase()}
+          >
+            Apagar tudo
           </Button>
         </DialogActions>
       </Dialog>

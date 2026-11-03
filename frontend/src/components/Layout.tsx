@@ -1,18 +1,24 @@
-import { useState } from 'react'
+import { useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   AppBar,
+  Avatar,
   Box,
+  ButtonBase,
+  Chip,
+  Divider,
   Drawer,
   IconButton,
   List,
-  ListItem,
   ListItemButton,
   ListItemIcon,
   ListItemText,
+  Menu,
+  MenuItem,
   Toolbar,
+  Tooltip,
   Typography,
-  Button,
+  alpha,
 } from '@mui/material'
 import {
   Menu as MenuIcon,
@@ -27,128 +33,216 @@ import {
   LightMode,
   DevicesOther as SessionsIcon,
   FactCheck as ComplianceIcon,
+  KeyboardArrowDown,
 } from '@mui/icons-material'
 import { useThemeMode } from '../contexts/ThemeModeContext'
+import { brand } from '../theme'
+import { ROLE_LABEL } from '../utils/labels'
+import BrandMark from './BrandMark'
 
-const DRAWER_WIDTH = 240
+const DRAWER_WIDTH = 252
 
-const menuItems = [
-  { text: 'Dashboard', icon: <DashboardIcon />, path: '/' },
-  { text: 'Dispositivos', icon: <DevicesIcon />, path: '/devices' },
-  { text: 'Políticas', icon: <PolicyIcon />, path: '/policies' },
-  { text: 'Grupos', icon: <GroupsIcon />, path: '/groups' },
-  { text: 'Conformidade', icon: <ComplianceIcon />, path: '/compliance' },
-  { text: 'Usuários', icon: <PeopleIcon />, path: '/users', adminOnly: true },
-  { text: 'Log de auditoria', icon: <AuditIcon />, path: '/audit-log', adminOnly: true },
-  { text: 'Sessões ativas', icon: <SessionsIcon />, path: '/sessions', adminOnly: true },
+interface NavItem {
+  text: string
+  icon: ReactNode
+  path: string
+}
+
+const OPERATION: NavItem[] = [
+  { text: 'Visão geral', icon: <DashboardIcon fontSize="small" />, path: '/' },
+  { text: 'Dispositivos', icon: <DevicesIcon fontSize="small" />, path: '/devices' },
+  { text: 'Políticas', icon: <PolicyIcon fontSize="small" />, path: '/policies' },
+  { text: 'Grupos', icon: <GroupsIcon fontSize="small" />, path: '/groups' },
+  { text: 'Conformidade', icon: <ComplianceIcon fontSize="small" />, path: '/compliance' },
+]
+const ADMIN: NavItem[] = [
+  { text: 'Usuários', icon: <PeopleIcon fontSize="small" />, path: '/users' },
+  { text: 'Log de auditoria', icon: <AuditIcon fontSize="small" />, path: '/audit-log' },
+  { text: 'Sessões ativas', icon: <SessionsIcon fontSize="small" />, path: '/sessions' },
 ]
 
 interface LayoutProps {
-  children: React.ReactNode
+  children: ReactNode
   onLogout: () => void
 }
 
 export default function Layout({ children, onLogout }: LayoutProps) {
   const [mobileOpen, setMobileOpen] = useState(false)
+  const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null)
   const navigate = useNavigate()
   const location = useLocation()
-  const isAdmin = localStorage.getItem('mdm_role') === 'admin'
+  const role = localStorage.getItem('mdm_role') || ''
+  const email = localStorage.getItem('mdm_email') || ''
+  const isAdmin = role === 'admin'
   const { mode, toggleMode } = useThemeMode()
 
+  const isSelected = (path: string) =>
+    path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
+
+  const renderItems = (items: NavItem[]) =>
+    items.map((item) => (
+      <ListItemButton
+        key={item.path}
+        selected={isSelected(item.path)}
+        onClick={() => {
+          navigate(item.path)
+          setMobileOpen(false)
+        }}
+        sx={{
+          mx: 1.5,
+          mb: 0.25,
+          py: 0.9,
+          borderRadius: 2,
+          color: 'rgba(255,255,255,0.72)',
+          '& .MuiListItemIcon-root': { minWidth: 36, color: 'inherit' },
+          '& .MuiListItemText-primary': { fontSize: '0.9rem', fontWeight: 500 },
+          '&:hover': { bgcolor: 'rgba(255,255,255,0.06)' },
+          '&.Mui-selected': {
+            bgcolor: alpha(brand.teal, 0.2),
+            color: '#fff',
+            '& .MuiListItemIcon-root': { color: brand.teal },
+            '& .MuiListItemText-primary': { fontWeight: 700 },
+          },
+          '&.Mui-selected:hover': { bgcolor: alpha(brand.teal, 0.28) },
+        }}
+      >
+        <ListItemIcon>{item.icon}</ListItemIcon>
+        <ListItemText primary={item.text} />
+      </ListItemButton>
+    ))
+
+  const sectionLabel = (text: string) => (
+    <Typography
+      sx={{ px: 3.5, mt: 2.5, mb: 0.75, fontSize: '0.68rem', fontWeight: 700, letterSpacing: '0.12em', textTransform: 'uppercase', color: 'rgba(255,255,255,0.4)' }}
+    >
+      {text}
+    </Typography>
+  )
+
   const drawer = (
-    <Box>
-      <Toolbar>
-        <Typography variant="subtitle1" sx={{ fontWeight: 'bold', lineHeight: 1.2 }}>
-          Arezzo Device Manager
-        </Typography>
-      </Toolbar>
-      <List>
-        {menuItems.filter((item) => !item.adminOnly || isAdmin).map((item) => (
-          <ListItem key={item.text} disablePadding>
-            <ListItemButton
-              selected={location.pathname === item.path}
-              onClick={() => {
-                navigate(item.path)
-                setMobileOpen(false)
-              }}
-            >
-              <ListItemIcon>{item.icon}</ListItemIcon>
-              <ListItemText primary={item.text} />
-            </ListItemButton>
-          </ListItem>
-        ))}
-      </List>
+    <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: brand.inkDeep, color: '#fff' }}>
+      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2.5, height: 68, flexShrink: 0 }}>
+        <BrandMark size={36} />
+        <Box sx={{ minWidth: 0 }}>
+          <Typography sx={{ fontWeight: 800, lineHeight: 1.15, fontSize: '1rem', letterSpacing: '-0.01em' }}>Arezzo</Typography>
+          <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.2 }}>Device Manager</Typography>
+        </Box>
+      </Box>
+      <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
+      <Box sx={{ flex: 1, overflowY: 'auto', pb: 2 }}>
+        {sectionLabel('Operação')}
+        <List disablePadding>{renderItems(OPERATION)}</List>
+        {isAdmin && (
+          <>
+            {sectionLabel('Administração')}
+            <List disablePadding>{renderItems(ADMIN)}</List>
+          </>
+        )}
+      </Box>
     </Box>
   )
 
   return (
-    <Box sx={{ display: 'flex' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
       <AppBar
         position="fixed"
-        sx={{ zIndex: (theme) => theme.zIndex.drawer + 1 }}
+        color="inherit"
+        elevation={0}
+        sx={{
+          ml: { sm: `${DRAWER_WIDTH}px` },
+          width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
+          bgcolor: 'background.paper',
+          color: 'text.primary',
+          borderBottom: 1,
+          borderColor: 'divider',
+        }}
       >
-        <Toolbar>
-          <IconButton
-            color="inherit"
-            edge="start"
-            onClick={() => setMobileOpen(!mobileOpen)}
-            sx={{ mr: 2, display: { sm: 'none' } }}
-          >
+        <Toolbar sx={{ minHeight: 64, gap: { xs: 0.25, sm: 1 }, px: { xs: 1.5, sm: 3 } }}>
+          <IconButton edge="start" onClick={() => setMobileOpen(!mobileOpen)} sx={{ display: { sm: 'none' } }} aria-label="Abrir menu">
             <MenuIcon />
           </IconButton>
-          <Typography variant="h6" noWrap sx={{ flexGrow: 1 }}>
-            Arezzo Device Manager
-          </Typography>
-          <IconButton
-            color="inherit"
-            onClick={toggleMode}
-            sx={{ mr: 1 }}
-            aria-label={mode === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}
-            title={mode === 'light' ? 'Modo escuro' : 'Modo claro'}
+          <Box sx={{ display: { xs: 'flex', sm: 'none' }, alignItems: 'center', gap: 1, minWidth: 0 }}>
+            <BrandMark size={28} />
+            <Typography noWrap sx={{ fontWeight: 700, fontSize: { xs: '0.95rem', sm: '1rem' } }}>
+              Arezzo Device Manager
+            </Typography>
+          </Box>
+          <Box sx={{ flexGrow: 1 }} />
+          <Tooltip title={mode === 'light' ? 'Modo escuro' : 'Modo claro'}>
+            <IconButton onClick={toggleMode} aria-label={mode === 'light' ? 'Ativar modo escuro' : 'Ativar modo claro'}>
+              {mode === 'light' ? <DarkMode /> : <LightMode />}
+            </IconButton>
+          </Tooltip>
+          <ButtonBase
+            onClick={(e) => setMenuAnchor(e.currentTarget)}
+            sx={{ ml: 0.5, pl: 0.75, pr: 1, py: 0.5, borderRadius: 2, gap: 1, '&:hover': { bgcolor: 'action.hover' } }}
+            aria-label="Menu do usuário"
           >
-            {mode === 'light' ? <DarkMode /> : <LightMode />}
-          </IconButton>
-          <Button color="inherit" startIcon={<LogoutIcon />} onClick={onLogout}>
-            Sair
-          </Button>
+            <Avatar sx={{ width: 32, height: 32, bgcolor: brand.ink, color: brand.teal, fontSize: '0.9rem', fontWeight: 700 }}>
+              {(email[0] || '?').toUpperCase()}
+            </Avatar>
+            <Box sx={{ display: { xs: 'none', md: 'block' }, textAlign: 'left', minWidth: 0 }}>
+              <Typography sx={{ fontSize: '0.8125rem', fontWeight: 600, lineHeight: 1.2, maxWidth: 200 }} noWrap>
+                {email}
+              </Typography>
+              <Typography sx={{ fontSize: '0.72rem', color: 'text.secondary', lineHeight: 1.2 }}>{ROLE_LABEL[role] ?? role}</Typography>
+            </Box>
+            <KeyboardArrowDown fontSize="small" sx={{ color: 'text.secondary', display: { xs: 'none', sm: 'block' } }} />
+          </ButtonBase>
+          <Menu
+            anchorEl={menuAnchor}
+            open={!!menuAnchor}
+            onClose={() => setMenuAnchor(null)}
+            anchorOrigin={{ vertical: 'bottom', horizontal: 'right' }}
+            transformOrigin={{ vertical: 'top', horizontal: 'right' }}
+            slotProps={{ paper: { sx: { mt: 1, minWidth: 220 } } }}
+          >
+            <Box sx={{ px: 2, py: 1.25 }}>
+              <Typography sx={{ fontSize: '0.85rem', fontWeight: 600 }} noWrap>
+                {email}
+              </Typography>
+              <Chip size="small" label={ROLE_LABEL[role] ?? role} sx={{ mt: 0.5 }} />
+            </Box>
+            <Divider />
+            <MenuItem
+              onClick={() => {
+                setMenuAnchor(null)
+                onLogout()
+              }}
+            >
+              <ListItemIcon>
+                <LogoutIcon fontSize="small" />
+              </ListItemIcon>
+              Sair
+            </MenuItem>
+          </Menu>
         </Toolbar>
       </AppBar>
-      <Box
-        component="nav"
-        sx={{ width: { sm: DRAWER_WIDTH }, flexShrink: { sm: 0 } }}
-      >
+
+      <Box component="nav" sx={{ width: { sm: DRAWER_WIDTH }, flexShrink: { sm: 0 } }}>
         <Drawer
           variant="temporary"
           open={mobileOpen}
           onClose={() => setMobileOpen(false)}
-          sx={{
-            display: { xs: 'block', sm: 'none' },
-            '& .MuiDrawer-paper': { width: DRAWER_WIDTH },
-          }}
+          ModalProps={{ keepMounted: true }}
+          sx={{ display: { xs: 'block', sm: 'none' }, '& .MuiDrawer-paper': { width: DRAWER_WIDTH, border: 0 } }}
         >
           {drawer}
         </Drawer>
         <Drawer
           variant="permanent"
-          sx={{
-            display: { xs: 'none', sm: 'block' },
-            '& .MuiDrawer-paper': { width: DRAWER_WIDTH },
-          }}
           open
+          sx={{ display: { xs: 'none', sm: 'block' }, '& .MuiDrawer-paper': { width: DRAWER_WIDTH, border: 0 } }}
         >
           {drawer}
         </Drawer>
       </Box>
-      <Box
-        component="main"
-        sx={{
-          flexGrow: 1,
-          p: 3,
-          width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
-          mt: 8,
-        }}
-      >
-        {children}
+
+      {/* minWidth: 0 impede que uma tabela larga estique a página inteira (era a causa do
+          transbordo horizontal no celular). */}
+      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` } }}>
+        <Toolbar sx={{ minHeight: 64 }} />
+        <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 1440, mx: 'auto' }}>{children}</Box>
       </Box>
     </Box>
   )
