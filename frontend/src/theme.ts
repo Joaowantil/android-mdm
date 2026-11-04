@@ -63,6 +63,22 @@ export function createAppTheme(mode: PaletteMode): Theme {
           }),
         },
       },
+      // Preenchimento automático do navegador (usuário/senha salvos). O Chrome pinta o <input>
+      // de azul-claro (azul-escuro no tema escuro) e o retângulo vaza do campo arredondado.
+      // Cobrimos com a cor do próprio campo; o texto mantém a cor do tema.
+      MuiOutlinedInput: {
+        styleOverrides: {
+          input: ({ theme }) => ({
+            '&:-webkit-autofill, &:-webkit-autofill:hover, &:-webkit-autofill:focus, &:-webkit-autofill:active': {
+              WebkitBoxShadow: `0 0 0 100px ${theme.palette.background.paper} inset`,
+              WebkitTextFillColor: theme.palette.text.primary,
+              caretColor: theme.palette.text.primary,
+              borderRadius: 'inherit',
+              transition: 'background-color 5000s ease-in-out 0s',
+            },
+          }),
+        },
+      },
       MuiDialog: { styleOverrides: { paper: { borderRadius: 14 } } },
       MuiAlert: { styleOverrides: { root: { borderRadius: 10 } } },
       MuiTooltip: { defaultProps: { arrow: true } },
