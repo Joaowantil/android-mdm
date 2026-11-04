@@ -1,0 +1,13 @@
+.env
+.env.*
+*.db
+*.sqlite3
+__pycache__/
+*.pyc
+venv/
+.venv/
+tests/
+.pytest_cache/
+requirements.txt
+Dockerfile
+.dockerignore

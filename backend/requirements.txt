@@ -1,14 +1,24 @@
+# Dependências DIRETAS do backend (as que o código realmente usa), com versão fixa.
+# A lista COMPLETA com as versões indiretas está em requirements.lock: é ela que o
+# Dockerfile instala, para o build ser reprodutível.
+#
+# Ao mudar algo aqui, regenere o lock (veja o README, seção "Dependências").
+#
+# Removidos em relação à versão anterior, por NÃO serem usados em lugar nenhum do código
+# (verificado por busca e rodando o sistema completo sem eles): alembic, firebase-admin,
+# python-multipart. O banco usa create_all + migrações leves em app/core/database.py.
+
 fastapi==0.104.1
 uvicorn[standard]==0.24.0
 sqlalchemy==2.0.23
-alembic==1.13.0
 pydantic==2.5.2
 pydantic-settings==2.1.0
-pyjwt==2.9.0
+python-dotenv==1.2.4
+pyjwt==2.15.1
 bcrypt==5.0.0
-python-multipart==0.0.6
 httpx==0.25.2
-firebase-admin==6.2.0
-python-dotenv==1.0.0
-aiosqlite==0.19.0
+
+# Drivers de banco. asyncpg: PostgreSQL (produção). aiosqlite: só para desenvolvimento local,
+# testes e para o script de migração scripts/migrate_sqlite_to_postgres.py.
 asyncpg==0.32.0
+aiosqlite==0.19.0
