@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from 'react'
+import { useEffect, useRef, useState, type ReactNode } from 'react'
 import { useNavigate, useLocation } from 'react-router-dom'
 import {
   AppBar,
@@ -41,6 +41,10 @@ import { ROLE_LABEL } from '../utils/labels'
 import BrandMark from './BrandMark'
 
 const DRAWER_WIDTH = 252
+// Altura da faixa de cima: 64 px de conteúdo + 1 px de borda. A barra superior E o bloco da
+// marca no menu lateral usam este MESMO valor, senão as duas linhas ficam em alturas diferentes
+// (eram 4 px de diferença: 65 contra 69).
+const HEADER_HEIGHT = 65
 
 interface NavItem {
   text: string
@@ -75,6 +79,14 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   const email = localStorage.getItem('mdm_email') || ''
   const isAdmin = role === 'admin'
   const { mode, toggleMode } = useThemeMode()
+
+  // A rolagem acontece num painel interno (veja o <main> abaixo), não na página. Ao trocar de
+  // tela ele volta ao topo.
+  const scrollerRef = useRef<HTMLDivElement>(null)
+  useEffect(() => {
+    scrollerRef.current?.scrollTo({ top: 0 })
+    window.scrollTo({ top: 0 })
+  }, [location.pathname])
 
   const isSelected = (path: string) =>
     path === '/' ? location.pathname === '/' : location.pathname.startsWith(path)
@@ -121,14 +133,16 @@ export default function Layout({ children, onLogout }: LayoutProps) {
 
   const drawer = (
     <Box sx={{ height: '100%', display: 'flex', flexDirection: 'column', bgcolor: brand.inkDeep, color: '#fff' }}>
-      <Box sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2.5, height: 68, flexShrink: 0 }}>
+      <Box
+        data-testid="sidebar-brand"
+        sx={{ display: 'flex', alignItems: 'center', gap: 1.5, px: 2.5, height: HEADER_HEIGHT, boxSizing: 'border-box', borderBottom: '1px solid rgba(255,255,255,0.08)', flexShrink: 0 }}
+      >
         <BrandMark size={36} />
         <Box sx={{ minWidth: 0 }}>
           <Typography sx={{ fontWeight: 800, lineHeight: 1.15, fontSize: '1rem', letterSpacing: '-0.01em' }}>Arezzo</Typography>
           <Typography sx={{ fontSize: '0.78rem', color: 'rgba(255,255,255,0.6)', lineHeight: 1.2 }}>Device Manager</Typography>
         </Box>
       </Box>
-      <Divider sx={{ borderColor: 'rgba(255,255,255,0.08)' }} />
       <Box sx={{ flex: 1, overflowY: 'auto', pb: 2 }}>
         {sectionLabel('Operação')}
         <List disablePadding>{renderItems(OPERATION)}</List>
@@ -143,7 +157,7 @@ export default function Layout({ children, onLogout }: LayoutProps) {
   )
 
   return (
-    <Box sx={{ display: 'flex', minHeight: '100vh' }}>
+    <Box sx={{ display: 'flex', minHeight: '100vh', height: { sm: '100vh' }, overflow: { sm: 'hidden' } }}>
       <AppBar
         position="fixed"
         color="inherit"
@@ -155,6 +169,8 @@ export default function Layout({ children, onLogout }: LayoutProps) {
           color: 'text.primary',
           borderBottom: 1,
           borderColor: 'divider',
+          height: HEADER_HEIGHT,
+          boxSizing: 'border-box',
         }}
       >
         <Toolbar sx={{ minHeight: 64, gap: { xs: 0.25, sm: 1 }, px: { xs: 1.5, sm: 3 } }}>
@@ -238,11 +254,31 @@ export default function Layout({ children, onLogout }: LayoutProps) {
         </Drawer>
       </Box>
 
-      {/* minWidth: 0 impede que uma tabela larga estique a página inteira (era a causa do
-          transbordo horizontal no celular). */}
-      <Box component="main" sx={{ flexGrow: 1, minWidth: 0, width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` } }}>
-        <Toolbar sx={{ minHeight: 64 }} />
-        <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 1440, mx: 'auto' }}>{children}</Box>
+      {/* Em tela larga a PÁGINA não rola: o que rola é o painel interno abaixo da barra superior.
+          Assim a barra de rolagem nunca encolhe a janela e o que fica encostado à direita (modo
+          escuro, usuário) não se mexe quando ela aparece. `scrollbar-gutter: stable` reserva o
+          espaço dela, então o conteúdo também não pula entre páginas curtas e longas.
+          No celular a barra é sobreposta e não ocupa espaço: lá a página rola normalmente.
+          minWidth: 0 impede que uma tabela larga estique a página inteira. */}
+      <Box
+        component="main"
+        sx={{
+          flexGrow: 1,
+          minWidth: 0,
+          width: { sm: `calc(100% - ${DRAWER_WIDTH}px)` },
+          display: 'flex',
+          flexDirection: 'column',
+          height: { sm: '100vh' },
+        }}
+      >
+        <Box sx={{ height: HEADER_HEIGHT, flexShrink: 0 }} />
+        <Box
+          ref={scrollerRef}
+          data-testid="scroller"
+          sx={{ flex: { sm: '1 1 auto' }, minHeight: 0, overflowY: { sm: 'auto' }, scrollbarGutter: { sm: 'stable' } }}
+        >
+          <Box sx={{ p: { xs: 2, sm: 3 }, maxWidth: 1440, mx: 'auto' }}>{children}</Box>
+        </Box>
       </Box>
     </Box>
   )
