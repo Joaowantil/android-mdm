@@ -25,3 +25,9 @@ android-agent/local.properties
 # OS
 .DS_Store
 Thumbs.db
+
+# Docker / operação (nunca versionar)
+.env
+backups/
+migration/
+*.dump
