@@ -1,0 +1,168 @@
+# =====================================================================================
+# Arezzo Device Manager: PostgreSQL + API (FastAPI) + painel (nginx)
+#
+#   cp .env.example .env   # preencha as variáveis obrigatórias
+#   docker compose up -d --build
+#
+# Requer Docker Compose v2 (comando "docker compose", com espaço).
+# Leia o README.md antes do primeiro uso: há decisões que dependem do seu ambiente
+# (IP/DNS dos aparelhos, HTTPS, faixa de rede).
+# =====================================================================================
+name: mdm
+
+# Rotação dos logs. Sem isso o Docker guarda os logs para sempre e acaba enchendo o disco.
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+services:
+  # ---------------------------------------------------------------------------------
+  # Banco de dados
+  # ---------------------------------------------------------------------------------
+  db:
+    # Imagem Debian (e não a alpine): tem suporte a "locale" completo, então a ordenação e a
+    # comparação de textos com acento se comportam como num PostgreSQL de servidor comum.
+    image: postgres:16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: mdm
+      POSTGRES_USER: mdm
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Defina POSTGRES_PASSWORD no arquivo .env}
+      POSTGRES_INITDB_ARGS: "--encoding=UTF8 --data-checksums"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    networks:
+      - db_net
+    healthcheck:
+      # "-h 127.0.0.1" testa a conexão por TCP. Sem ele o teste passa durante a inicialização do
+      # volume (quando o servidor temporário só escuta no socket) e a API tentaria conectar cedo.
+      test: ["CMD-SHELL", "pg_isready -h 127.0.0.1 -U mdm -d mdm"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+      start_period: 20s
+    stop_grace_period: 30s        # tempo para o PostgreSQL encerrar com segurança
+    shm_size: 128mb
+    security_opt:
+      - no-new-privileges:true
+    deploy:
+      resources:
+        limits:
+          memory: ${DB_MEM_LIMIT:-1g}
+    logging: *logging
+    # Sem "ports": o banco NÃO é acessível de fora. Para consultar: docker compose exec db psql -U mdm -d mdm
+
+  # ---------------------------------------------------------------------------------
+  # API
+  # ---------------------------------------------------------------------------------
+  backend:
+    build:
+      context: ./backend
+    image: arezzo-device-manager-backend:local
+    restart: unless-stopped
+    init: true                    # encerra processos filhos e trata sinais corretamente
+    depends_on:
+      db:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgresql+asyncpg://mdm:${POSTGRES_PASSWORD}@db:5432/mdm
+      SECRET_KEY: ${SECRET_KEY:?Defina SECRET_KEY no arquivo .env}
+      INITIAL_ADMIN_PASSWORD: ${INITIAL_ADMIN_PASSWORD:?Defina INITIAL_ADMIN_PASSWORD no arquivo .env}
+      ACCESS_TOKEN_EXPIRE_MINUTES: ${ACCESS_TOKEN_EXPIRE_MINUTES:-480}
+      DEBUG: "false"
+      # Em quem a API confia para ler o IP real do cliente (cabeçalho X-Forwarded-For). "*" só é
+      # seguro porque esta API NÃO publica porta nenhuma e só o container "web" a alcança
+      # (e o nginx sobrescreve o cabeçalho). Se um dia publicar a porta 8000 da API, REMOVA esta
+      # linha: senão qualquer cliente poderia forjar o IP do log de auditoria.
+      # (O uvicorn desta versão não aceita faixa de rede aqui: "10.0.0.0/8" seria ignorado.)
+      FORWARDED_ALLOW_IPS: "*"
+    networks:
+      - web_net                   # fala com o nginx e tem saída para a internet (geocodificação)
+      - db_net                    # fala com o banco
+    # A API não grava em disco, então o sistema de arquivos pode ser somente leitura.
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 40s
+    deploy:
+      resources:
+        limits:
+          memory: ${BACKEND_MEM_LIMIT:-512m}
+    logging: *logging
+
+  # ---------------------------------------------------------------------------------
+  # Painel + entrada única (nginx)
+  # ---------------------------------------------------------------------------------
+  web:
+    build:
+      context: ./frontend
+    image: arezzo-device-manager-web:local
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    ports:
+      # Painel e API para as pessoas e para os aparelhos novos.
+      - "${HTTP_PORT:-80}:8080"
+      # Compatibilidade: os aparelhos JÁ INSTALADOS têm o endereço do servidor gravado no APK,
+      # hoje http://IP:8000. Esta porta os atende sem recompilar o app. Não use o mesmo número
+      # em HTTP_PORT e LEGACY_API_PORT. Quando todos os aparelhos usarem a porta 80, remova a linha.
+      - "${LEGACY_API_PORT:-8000}:8080"
+    networks:
+      - web_net
+    read_only: true
+    tmpfs:
+      - /tmp
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    healthcheck:
+      # Passa pelo nginx E pela API: se qualquer um dos dois cair, o container fica "unhealthy".
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1:8080/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 5
+      start_period: 15s
+    deploy:
+      resources:
+        limits:
+          memory: ${WEB_MEM_LIMIT:-128m}
+    logging: *logging
+
+# ------------------------------------------------------------------------------------
+# Redes
+#
+# Faixas fixas e incomuns (198.18.0.0/15, reservada para testes de rede) de propósito: o Docker
+# escolhe sozinho uma sub-rede 172.x e, em redes corporativas que usam 172.x (os coletores aqui
+# estão em 172.23.x), isso pode sobrepor uma rota real do servidor e derrubar a comunicação com
+# outras redes SEM nenhum aviso. Se 198.18.x conflitar com algo seu, mude no .env.
+#
+# db_net é "internal": o banco não tem saída para a internet nem é alcançável pela rede do servidor.
+# ------------------------------------------------------------------------------------
+networks:
+  web_net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: ${MDM_WEB_SUBNET:-198.18.40.0/24}
+  db_net:
+    driver: bridge
+    internal: true
+    ipam:
+      config:
+        - subnet: ${MDM_DB_SUBNET:-198.18.41.0/24}
+
+volumes:
+  pgdata:

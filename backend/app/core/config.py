@@ -15,6 +15,11 @@ class Settings(BaseSettings):
     ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 480
 
+    # Senha do administrador inicial (admin@mdm.local), usada SÓ na primeira subida com o banco
+    # vazio. Se vazia, cai no padrão "admin123" (conhecido publicamente) e a API avisa no log.
+    # Ao restaurar um backup (já há usuários), é ignorada.
+    INITIAL_ADMIN_PASSWORD: str = ""
+
     # Firebase (optional)
     FIREBASE_CREDENTIALS_PATH: str = ""
 
