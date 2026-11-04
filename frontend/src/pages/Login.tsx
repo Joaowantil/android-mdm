@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, TextField, Typography } from '@mui/material'
+import { Alert, Box, Button, CircularProgress, IconButton, InputAdornment, TextField, Typography, type Theme } from '@mui/material'
 import { CheckCircleOutline, EmailOutlined, LockOutlined, Visibility, VisibilityOff } from '@mui/icons-material'
 import api from '../services/api'
 import { getErrorMessage } from '../utils/errors'
@@ -9,6 +9,14 @@ import BrandMark from '../components/BrandMark'
 interface LoginProps {
   onLogin: (token: string) => void
 }
+
+// Os campos do login ficam direto sobre o fundo da página; o preenchimento automático do
+// navegador deve ficar dessa cor (o padrão do tema é a cor de cartão).
+const fieldSx = (theme: Theme) => ({
+  '& .MuiOutlinedInput-input:-webkit-autofill, & .MuiOutlinedInput-input:-webkit-autofill:hover, & .MuiOutlinedInput-input:-webkit-autofill:focus': {
+    WebkitBoxShadow: `0 0 0 100px ${theme.palette.background.default} inset`,
+  },
+})
 
 const HIGHLIGHTS = [
   'Cadastro de aparelhos por QR code',
@@ -108,6 +116,7 @@ export default function Login({ onLogin }: LoginProps) {
               onChange={(e) => setEmail(e.target.value)}
               margin="normal"
               required
+              sx={fieldSx}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
@@ -125,6 +134,7 @@ export default function Login({ onLogin }: LoginProps) {
               onChange={(e) => setPassword(e.target.value)}
               margin="normal"
               required
+              sx={fieldSx}
               InputProps={{
                 startAdornment: (
                   <InputAdornment position="start">
