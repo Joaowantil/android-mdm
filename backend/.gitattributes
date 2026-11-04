@@ -1,0 +1,7 @@
+# Scripts e arquivos de container precisam de quebra de linha LF mesmo se alguém editar no Windows:
+# com CRLF, "#!/bin/sh^M" faz o script falhar com "not found" no Linux.
+*.sh text eol=lf
+Dockerfile text eol=lf
+*.yml text eol=lf
+*.conf text eol=lf
+*.lock text eol=lf
