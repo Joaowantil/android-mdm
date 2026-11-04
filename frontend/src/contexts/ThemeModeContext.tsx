@@ -38,7 +38,7 @@ export function ThemeModeProvider({ children }: { children: ReactNode }) {
   return (
     <ThemeModeContext.Provider value={{ mode, toggleMode }}>
       <ThemeProvider theme={theme}>
-        <CssBaseline />
+        <CssBaseline enableColorScheme />
         {children}
       </ThemeProvider>
     </ThemeModeContext.Provider>
